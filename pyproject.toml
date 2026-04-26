@@ -20,6 +20,7 @@ ui = [
 # Install the FastAPI REST adapter:
 #   uv sync --extra rest
 rest = [
+    "asgi-correlation-id>=4.0.0",
     "fastapi>=0.100.0",
     "python-json-logger>=3.2.0",
     "uvicorn[standard]>=0.20.0",

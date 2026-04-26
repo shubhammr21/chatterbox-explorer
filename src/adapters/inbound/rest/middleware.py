@@ -4,25 +4,44 @@ src/adapters/inbound/rest/middleware.py
 HTTP request/response middleware for the FastAPI REST adapter.
 
 RequestLoggingMiddleware
-    Emits one structured log record per request containing:
-        request_id  — UUID4 string, also returned as X-Request-Id response header
-        method      — HTTP verb
-        path        — URL path (no query string)
-        status_code — integer HTTP status
-        duration_ms — wall-clock time from first byte received to response sent
+------------------------
+Emits one structured access-log record per request containing:
 
-    Uses logging.getLogger("chatterbox.access") so the log record can be
-    routed to a separate handler or suppressed independently of the root logger.
+    method      -- HTTP verb (GET, POST, ...)
+    path        -- URL path, no query string
+    status_code -- integer HTTP response status
+    duration_ms -- wall-clock milliseconds from first byte received to
+                   response headers sent
 
-    The request_id is attached to request.state so route handlers can include
-    it in their own log records if needed.
+Correlation ID
+--------------
+This middleware has NO responsibility for generating or attaching a
+correlation / request ID.  That is entirely delegated to
+``CorrelationIdMiddleware`` from the ``asgi-correlation-id`` library, which
+must be registered as the **outermost** middleware (added last via
+``app.add_middleware``).  By the time ``RequestLoggingMiddleware.dispatch()``
+is called, the ``correlation_id`` ContextVar is already set.
+
+The ``CorrelationIdFilter`` attached to the JSON log handler (configured in
+``logging_config.configure_json()``) automatically injects
+``record.correlation_id`` into every ``LogRecord`` that flows through the
+handler -- including the access-log records emitted here.  No manual
+``correlation_id.get()`` call is needed in this class.
+
+The ``X-Request-ID`` response header is also set by ``CorrelationIdMiddleware``
+-- this class does **not** touch response headers.
+
+Middleware stack (request order, outermost to innermost):
+
+    CorrelationIdMiddleware   -- sets ContextVar + X-Request-ID header
+    RequestLoggingMiddleware  -- measures timing, emits access log
+    route handler             -- business logic
 
 Architecture note
 -----------------
-BaseHTTPMiddleware adds one asyncio context switch per request (~microseconds).
-For a TTS server where inference takes 1-30 seconds per call, this overhead
-is completely negligible. Only for sub-millisecond latency APIs would you
-consider a raw ASGI middleware instead.
+``BaseHTTPMiddleware`` adds one asyncio context switch per request
+(~microseconds overhead).  For a TTS server where inference takes 1-30
+seconds, this is completely negligible.
 """
 
 from __future__ import annotations
@@ -30,7 +49,6 @@ from __future__ import annotations
 import logging
 import time
 from typing import TYPE_CHECKING
-import uuid
 
 from starlette.middleware.base import BaseHTTPMiddleware
 
@@ -44,18 +62,16 @@ access_log = logging.getLogger("chatterbox.access")
 
 
 class RequestLoggingMiddleware(BaseHTTPMiddleware):
-    """Emit one structured access-log record per request.
+    """Emit one structured access-log record per HTTP request.
 
-    Attaches a UUID4 request_id to request.state and to the X-Request-Id
-    response header so requests can be correlated across log lines and
-    client-side retries.
+    The ``CorrelationIdFilter`` on the JSON handler enriches every emitted
+    ``LogRecord`` with ``correlation_id`` automatically -- this class is
+    intentionally unaware of correlation IDs.
     """
 
     async def dispatch(self, request: Request, call_next: Callable) -> Response:
-        request_id = str(uuid.uuid4())
-        request.state.request_id = request_id
-
         start = time.perf_counter()
+
         try:
             response = await call_next(request)
         except Exception:
@@ -63,7 +79,6 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
             access_log.error(
                 "Request failed",
                 extra={
-                    "request_id": request_id,
                     "method": request.method,
                     "path": request.url.path,
                     "status_code": 500,
@@ -76,12 +91,10 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
         access_log.info(
             "Request completed",
             extra={
-                "request_id": request_id,
                 "method": request.method,
                 "path": request.url.path,
                 "status_code": response.status_code,
                 "duration_ms": duration_ms,
             },
         )
-        response.headers["X-Request-Id"] = request_id
         return response

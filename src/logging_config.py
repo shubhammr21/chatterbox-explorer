@@ -15,8 +15,9 @@ before any library with an eager logger (huggingface_hub, transformers,
 diffusers) is imported.
 
 For REST / production mode, call configure_json() from cli._launch_rest()
-AFTER configure() has already run — it replaces the root handler with a
-structured JSON emitter while reusing the same noisy-logger suppression.
+instead of configure(). It switches the root handler to structured JSON
+output and attaches asgi-correlation-id's CorrelationIdFilter so that every
+log record carries the active correlation ID automatically.
 """
 
 from __future__ import annotations
@@ -129,46 +130,130 @@ def configure() -> None:
 
 
 def configure_json() -> None:
-    """Configure structured JSON logging for the REST/production mode.
+    """Configure structured JSON logging for the REST / production mode.
 
-    Uses python-json-logger (>=3.2.0) to emit every log record as a
-    single-line JSON object, making it ingestible by log aggregators
-    (Datadog, CloudWatch Logs Insights, Grafana Loki) without parsing.
+    Differences from ``configure()``
+    ---------------------------------
+    - Root handler emits one-line JSON objects via ``python-json-logger``,
+      making every record ingestible by log aggregators (Datadog, CloudWatch
+      Logs Insights, Grafana Loki) without any parsing.
+    - Every ``LogRecord`` is enriched with a ``correlation_id`` field by
+      ``asgi_correlation_id.CorrelationIdFilter``, which reads the active
+      ``correlation_id`` ContextVar (set per-request by
+      ``CorrelationIdMiddleware``).  Outside a request context the field is
+      set to ``"-"`` so startup / shutdown log lines are always valid JSON.
+    - ``uvicorn.access`` is silenced at ``CRITICAL`` level because
+      ``RequestLoggingMiddleware`` is the sole source of per-request access
+      logs in REST mode.
+    - The ``asgi_correlation_id`` library's own logger is limited to
+      ``WARNING`` to suppress per-request debug noise.
 
-    Call this INSTEAD of configure() when launching the FastAPI REST server
-    (i.e. from cli._launch_rest()).
+    Implementation
+    --------------
+    Uses ``logging.config.dictConfig`` — the idiomatic, fully declarative
+    Python logging configuration API.  The ``CorrelationIdFilter`` is declared
+    in the ``filters`` section and referenced by the handler so it enriches
+    every record that flows through that handler, regardless of which logger
+    emitted it.
 
-    Differences from configure():
-      - Root handler emits JSON instead of plain text.
-      - uvicorn.access logger is suppressed at CRITICAL level — the
-        RequestLoggingMiddleware is the sole source of per-request logs.
-      - The same noisy third-party loggers are suppressed as in configure().
+    Prerequisites (``rest`` optional extra)
+    ----------------------------------------
+    - ``asgi-correlation-id>=4.0.0``  — provides ``CorrelationIdFilter``
+    - ``python-json-logger>=3.2.0``   — provides ``JsonFormatter``
+
+    Both are installed automatically with ``uv sync --extra rest``.
+
+    Call this function INSTEAD of ``configure()`` when launching the FastAPI
+    REST server (i.e. from ``cli._launch_rest()``).
     """
-    import logging
+    # ── Validate optional dependencies before calling dictConfig ─────────────
+    # Fail fast with a clear install instruction rather than a confusing
+    # KeyError or ImportError buried inside dictConfig's config machinery.
+    try:
+        import asgi_correlation_id  # noqa: F401
+    except ModuleNotFoundError as exc:
+        raise ModuleNotFoundError(
+            "asgi-correlation-id is required for JSON logging. "
+            "Install it with: uv sync --extra rest"
+        ) from exc
 
     try:
-        from pythonjsonlogger.json import JsonFormatter
+        import pythonjsonlogger  # noqa: F401
     except ModuleNotFoundError as exc:
         raise ModuleNotFoundError(
             "python-json-logger is required for JSON logging. Install it with: uv sync --extra rest"
         ) from exc
 
-    handler = logging.StreamHandler()
-    handler.setFormatter(
-        JsonFormatter(
-            fmt="%(asctime)s %(levelname)s %(name)s %(message)s",
-            datefmt="%Y-%m-%dT%H:%M:%S",
-        )
+    from logging.config import dictConfig
+
+    dictConfig(
+        {
+            "version": 1,
+            # Keep existing loggers (e.g. already-configured library loggers)
+            # rather than resetting them.  _suppress_noisy_loggers() below
+            # will then apply the correct levels on top.
+            "disable_existing_loggers": False,
+            # ── Filters ───────────────────────────────────────────────────
+            # CorrelationIdFilter reads the correlation_id ContextVar that
+            # CorrelationIdMiddleware sets for every HTTP request.
+            #   uuid_length=32  — keep the full 32-char hex UUID in JSON logs
+            #                     so grep/aggregators can match on the complete
+            #                     ID without truncation.
+            #   default_value="-" — emitted for log lines outside a request
+            #                       context (startup, shutdown, background tasks)
+            #                       so records remain valid JSON.
+            "filters": {
+                "correlation_id": {
+                    "()": "asgi_correlation_id.CorrelationIdFilter",
+                    "uuid_length": 32,
+                    "default_value": "-",
+                },
+            },
+            # ── Formatters ────────────────────────────────────────────────
+            # %(correlation_id)s is safe here because the CorrelationIdFilter
+            # on the handler guarantees the attribute exists on every
+            # LogRecord before the formatter runs.
+            "formatters": {
+                "json": {
+                    "()": "pythonjsonlogger.json.JsonFormatter",
+                    "fmt": ("%(asctime)s %(levelname)s %(name)s %(correlation_id)s %(message)s"),
+                    "datefmt": "%Y-%m-%dT%H:%M:%S",
+                },
+            },
+            # ── Handlers ──────────────────────────────────────────────────
+            # The filter MUST be declared on the handler (not on a logger)
+            # so that it enriches every record that passes through,
+            # regardless of which logger emitted it.
+            "handlers": {
+                "json_stdout": {
+                    "class": "logging.StreamHandler",
+                    "filters": ["correlation_id"],
+                    "formatter": "json",
+                },
+            },
+            # ── Root logger ───────────────────────────────────────────────
+            "root": {
+                "handlers": ["json_stdout"],
+                "level": "INFO",
+            },
+            # ── Named loggers ─────────────────────────────────────────────
+            "loggers": {
+                # Suppress uvicorn's native access log — RequestLoggingMiddleware
+                # is the sole source of per-request access logs in REST mode.
+                "uvicorn.access": {
+                    "level": "CRITICAL",
+                    "propagate": False,
+                },
+                # Suppress per-request debug lines from the correlation-id
+                # library itself (e.g. "Generated new request ID …").
+                "asgi_correlation_id": {
+                    "level": "WARNING",
+                    "propagate": True,
+                },
+            },
+        }
     )
 
-    root = logging.getLogger()
-    root.handlers.clear()
-    root.addHandler(handler)
-    root.setLevel(logging.INFO)
-
-    # Suppress uvicorn's native access logger — RequestLoggingMiddleware
-    # is the sole access-log source in REST mode.
-    logging.getLogger("uvicorn.access").setLevel(logging.CRITICAL)
-
-    # Same noisy library suppression as configure().
+    # Apply the same noisy third-party logger suppression used by configure().
+    # Called after dictConfig so it wins any level set by the config dict.
     _suppress_noisy_loggers()

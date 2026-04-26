@@ -95,6 +95,19 @@ wheels = [
 ]
 
 [[package]]
+name = "asgi-correlation-id"
+version = "4.3.4"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "packaging" },
+    { name = "starlette" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/f4/ff/a6538245ac1eaa7733ec6740774e9d5add019e2c63caa29e758c16c0afdd/asgi_correlation_id-4.3.4.tar.gz", hash = "sha256:ea6bc310380373cb9f731dc2e8b2b6fb978a76afe33f7a2384f697b8d6cd811d", size = 20075, upload-time = "2024-10-17T11:44:30.324Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/d9/ab/6936e2663c47a926e0659437b9333ad87d1ff49b1375d239026e0a268eba/asgi_correlation_id-4.3.4-py3-none-any.whl", hash = "sha256:36ce69b06c7d96b4acb89c7556a4c4f01a972463d3d49c675026cbbd08e9a0a2", size = 15262, upload-time = "2024-10-17T11:44:28.739Z" },
+]
+
+[[package]]
 name = "audioop-lts"
 version = "0.2.2"
 source = { registry = "https://pypi.org/simple" }
@@ -410,12 +423,14 @@ dependencies = [
 
 [package.optional-dependencies]
 all = [
+    { name = "asgi-correlation-id" },
     { name = "fastapi" },
     { name = "gradio" },
     { name = "python-json-logger" },
     { name = "uvicorn", extra = ["standard"] },
 ]
 rest = [
+    { name = "asgi-correlation-id" },
     { name = "fastapi" },
     { name = "python-json-logger" },
     { name = "uvicorn", extra = ["standard"] },
@@ -449,6 +464,7 @@ typecheck = [
 
 [package.metadata]
 requires-dist = [
+    { name = "asgi-correlation-id", marker = "extra == 'rest'", specifier = ">=4.0.0" },
     { name = "chatterbox-explorer", extras = ["ui", "rest"], marker = "extra == 'all'" },
     { name = "chatterbox-tts" },
     { name = "dependency-injector", specifier = ">=4.41.0" },

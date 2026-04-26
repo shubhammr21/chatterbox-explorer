@@ -265,19 +265,35 @@ class TestImportErrorFallbacks:
 class TestConfigureJson:
     """Tests for logging_config.configure_json().
 
-    configure_json() switches the root logger to a JSON formatter provided by
-    python-json-logger, suppresses uvicorn.access at CRITICAL, and applies the
-    same noisy-library suppression as configure().
+    configure_json() uses logging.config.dictConfig to:
+      - attach a pythonjsonlogger.json.JsonFormatter to the root handler
+      - attach asgi_correlation_id.CorrelationIdFilter to the same handler
+        so every LogRecord carries a ``correlation_id`` attribute
+      - silence uvicorn.access at CRITICAL (RequestLoggingMiddleware owns
+        access logs in REST mode)
+      - silence asgi_correlation_id library logger at WARNING
+      - apply the same noisy third-party logger suppression as configure()
 
-    python-json-logger is installed as part of the 'rest' optional extra and
-    must be present in the dev environment (uv sync --all-extras).
+    Both asgi-correlation-id and python-json-logger are part of the 'rest'
+    optional extra and must be present (uv sync --all-extras).
     """
 
+    # ── basic smoke ───────────────────────────────────────────────────────────
+
     def test_configure_json_does_not_raise(self) -> None:
-        """configure_json() must complete without raising when the dep is present."""
+        """configure_json() must complete without raising when all deps are present."""
         from logging_config import configure_json
 
-        configure_json()  # must not raise
+        configure_json()
+
+    def test_configure_json_idempotent(self) -> None:
+        """Calling configure_json() twice must not raise."""
+        from logging_config import configure_json
+
+        configure_json()
+        configure_json()
+
+    # ── root logger level ─────────────────────────────────────────────────────
 
     def test_configure_json_sets_root_level_to_info(self) -> None:
         from logging_config import configure_json
@@ -291,8 +307,10 @@ class TestConfigureJson:
         configure_json()
         assert len(logging.getLogger().handlers) >= 1
 
+    # ── JsonFormatter on root handler ─────────────────────────────────────────
+
     def test_configure_json_handler_has_json_formatter(self) -> None:
-        """Root handler must use a JSON-capable formatter after configure_json()."""
+        """Root handler must use pythonjsonlogger.json.JsonFormatter."""
         from pythonjsonlogger.json import JsonFormatter
 
         from logging_config import configure_json
@@ -303,12 +321,104 @@ class TestConfigureJson:
             "Expected at least one root handler with a JsonFormatter"
         )
 
+    # ── CorrelationIdFilter on root handler ───────────────────────────────────
+
+    def test_configure_json_handler_has_correlation_id_filter(self) -> None:
+        """Root handler must have CorrelationIdFilter so every LogRecord carries
+        a correlation_id attribute matching the active request's ContextVar."""
+        from asgi_correlation_id import CorrelationIdFilter
+
+        from logging_config import configure_json
+
+        configure_json()
+        root_handlers = logging.getLogger().handlers
+        assert any(
+            any(isinstance(f, CorrelationIdFilter) for f in h.filters) for h in root_handlers
+        ), "Expected CorrelationIdFilter on at least one root handler"
+
+    def test_correlation_id_filter_uses_full_32_char_length(self) -> None:
+        """uuid_length must be 32 so the full hex ID is stored in JSON logs."""
+        from asgi_correlation_id import CorrelationIdFilter
+
+        from logging_config import configure_json
+
+        configure_json()
+        filters = [
+            f
+            for h in logging.getLogger().handlers
+            for f in h.filters
+            if isinstance(f, CorrelationIdFilter)
+        ]
+        assert filters, "No CorrelationIdFilter found on root handlers"
+        assert all(f.uuid_length == 32 for f in filters), (
+            f"Expected uuid_length=32, got {[f.uuid_length for f in filters]}"
+        )
+
+    def test_correlation_id_filter_default_value_is_dash(self) -> None:
+        """default_value must be '-' so startup/shutdown log lines remain valid JSON."""
+        from asgi_correlation_id import CorrelationIdFilter
+
+        from logging_config import configure_json
+
+        configure_json()
+        filters = [
+            f
+            for h in logging.getLogger().handlers
+            for f in h.filters
+            if isinstance(f, CorrelationIdFilter)
+        ]
+        assert filters, "No CorrelationIdFilter found on root handlers"
+        assert all(f.default_value == "-" for f in filters), (
+            f"Expected default_value='-', got {[f.default_value for f in filters]}"
+        )
+
+    def test_correlation_id_filter_enriches_log_record(self) -> None:
+        """After configure_json(), a log record emitted outside a request context
+        must have correlation_id == '-' (the default_value)."""
+        from logging_config import configure_json
+
+        configure_json()
+
+        record = logging.LogRecord(
+            name="test",
+            level=logging.INFO,
+            pathname="",
+            lineno=0,
+            msg="hello",
+            args=(),
+            exc_info=None,
+        )
+        # Apply every filter on every root handler to the record.
+        for handler in logging.getLogger().handlers:
+            for f in handler.filters:
+                f.filter(record)
+
+        assert hasattr(record, "correlation_id"), (
+            "CorrelationIdFilter did not attach correlation_id to the LogRecord"
+        )
+        assert record.correlation_id == "-", (
+            f"Outside a request context expected '-', got {record.correlation_id!r}"
+        )
+
+    # ── logger level suppression ──────────────────────────────────────────────
+
     def test_configure_json_suppresses_uvicorn_access(self) -> None:
-        """uvicorn.access must be silenced so middleware is the sole access-log source."""
+        """uvicorn.access must be silenced — RequestLoggingMiddleware owns access logs."""
         from logging_config import configure_json
 
         configure_json()
         assert logging.getLogger("uvicorn.access").level == logging.CRITICAL
+
+    def test_configure_json_suppresses_asgi_correlation_id_debug_noise(self) -> None:
+        """asgi_correlation_id logger must be WARNING or above to suppress
+        per-request 'Generated new request ID' debug lines."""
+        from logging_config import configure_json
+
+        configure_json()
+        level = logging.getLogger("asgi_correlation_id").level
+        assert level >= logging.WARNING, (
+            f"Expected WARNING or higher, got {logging.getLevelName(level)}"
+        )
 
     def test_configure_json_suppresses_transformers(self) -> None:
         from logging_config import configure_json
@@ -328,16 +438,25 @@ class TestConfigureJson:
         configure_json()
         assert logging.getLogger("diffusers").level == logging.ERROR
 
-    def test_configure_json_idempotent(self) -> None:
-        """Calling configure_json() twice must not raise."""
+    # ── missing dependency guards ─────────────────────────────────────────────
+
+    def test_configure_json_raises_when_asgi_correlation_id_missing(self) -> None:
+        """When asgi-correlation-id is absent, configure_json() must raise
+        ModuleNotFoundError with a clear install instruction."""
+        import sys
+        from unittest.mock import patch
+
         from logging_config import configure_json
 
-        configure_json()
-        configure_json()
+        with (
+            patch.dict(sys.modules, {"asgi_correlation_id": None}),
+            pytest.raises(ModuleNotFoundError, match="asgi-correlation-id"),
+        ):
+            configure_json()
 
     def test_configure_json_raises_when_pythonjsonlogger_missing(self) -> None:
-        """When python-json-logger is absent, configure_json() must raise ModuleNotFoundError
-        with a helpful install instruction."""
+        """When python-json-logger is absent, configure_json() must raise
+        ModuleNotFoundError with a clear install instruction."""
         import sys
         from unittest.mock import patch
 
@@ -346,10 +465,7 @@ class TestConfigureJson:
         with (
             patch.dict(
                 sys.modules,
-                {
-                    "pythonjsonlogger": None,
-                    "pythonjsonlogger.json": None,
-                },
+                {"pythonjsonlogger": None, "pythonjsonlogger.json": None},
             ),
             pytest.raises(ModuleNotFoundError, match="python-json-logger"),
         ):

@@ -167,20 +167,20 @@ class TestHealthEndpoint:
         assert resp.json()["device"] == "cpu"
 
     def test_response_has_x_request_id_header(self, rest_client, rest_app):
+        """CorrelationIdMiddleware must set X-Request-ID (uppercase D) on every response."""
         mock_cfg = AppConfig(device="cpu", watermark_available=False)
         with rest_app.container.app_config.override(mock_cfg):
             resp = rest_client.get("/api/v1/health")
-        assert "X-Request-Id" in resp.headers
+        assert "X-Request-ID" in resp.headers
 
-    def test_x_request_id_is_uuid4(self, rest_client, rest_app):
-        _UUID4_RE = re.compile(
-            r"^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
-        )
+    def test_x_request_id_is_32_char_hex(self, rest_client, rest_app):
+        """Generated ID must be a 32-character lowercase hex string (uuid4().hex format)."""
+        _HEX32_RE = re.compile(r"^[0-9a-f]{32}$")
         mock_cfg = AppConfig(device="cpu", watermark_available=False)
         with rest_app.container.app_config.override(mock_cfg):
             resp = rest_client.get("/api/v1/health")
-        request_id = resp.headers["X-Request-Id"]
-        assert _UUID4_RE.match(request_id), f"Not a UUID4: {request_id!r}"
+        request_id = resp.headers["X-Request-ID"]
+        assert _HEX32_RE.match(request_id), f"Expected 32-char hex ID, got {request_id!r}"
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -701,44 +701,97 @@ class TestWatermarkDetectEndpoint:
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Middleware  (X-Request-Id on every response)
+# Correlation ID (X-Request-ID set by CorrelationIdMiddleware)
 # ─────────────────────────────────────────────────────────────────────────────
 
 
 class TestRequestIdMiddleware:
-    """RequestLoggingMiddleware must add X-Request-Id to every response."""
+    """CorrelationIdMiddleware must attach X-Request-ID to every response.
 
-    _UUID4_RE = re.compile(r"^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$")
+    Header name
+    -----------
+    ``asgi-correlation-id`` defaults to ``X-Request-ID`` (uppercase D).
+    All assertions use this exact casing.
+
+    ID format
+    ---------
+    The default generator is ``lambda: uuid4().hex`` which produces a
+    32-character lowercase hex string with no hyphens, e.g.
+    ``16b61d57f9ff4a85ac80f5cd406e0aa2``.
+    The regex ``_HEX32_RE`` matches exactly this format.
+
+    Client-supplied headers
+    -----------------------
+    When the client sends ``X-Request-ID`` with a valid UUID4 value the
+    middleware echoes that value back unchanged (pass-through).
+    When the value fails UUID4 validation the middleware generates a fresh
+    ID and logs a warning — the client value is NOT reflected.
+    """
+
+    # 32-char lowercase hex — the format produced by uuid4().hex (no hyphens)
+    _HEX32_RE = re.compile(r"^[0-9a-f]{32}$")
 
     def test_health_response_has_x_request_id(self, rest_client, rest_app):
+        """X-Request-ID header must be present on a successful response."""
         mock_cfg = AppConfig(device="cpu", watermark_available=False)
         with rest_app.container.app_config.override(mock_cfg):
             resp = rest_client.get("/api/v1/health")
-        assert "X-Request-Id" in resp.headers
+        assert "X-Request-ID" in resp.headers
 
-    def test_x_request_id_is_valid_uuid4(self, rest_client, rest_app):
+    def test_x_request_id_is_32_char_hex(self, rest_client, rest_app):
+        """Generated ID must be a 32-character lowercase hex string (uuid4().hex)."""
         mock_cfg = AppConfig(device="cpu", watermark_available=False)
         with rest_app.container.app_config.override(mock_cfg):
             resp = rest_client.get("/api/v1/health")
-        rid = resp.headers["X-Request-Id"]
-        assert self._UUID4_RE.match(rid), f"Not a UUID4: {rid!r}"
+        rid = resp.headers["X-Request-ID"]
+        assert self._HEX32_RE.match(rid), f"Expected 32-char hex ID, got {rid!r}"
 
-    def test_two_requests_get_different_request_ids(self, rest_client, rest_app):
+    def test_two_requests_get_different_ids(self, rest_client, rest_app):
+        """Each request must receive a unique correlation ID."""
         mock_cfg = AppConfig(device="cpu", watermark_available=False)
         with rest_app.container.app_config.override(mock_cfg):
             r1 = rest_client.get("/api/v1/health")
             r2 = rest_client.get("/api/v1/health")
-        assert r1.headers["X-Request-Id"] != r2.headers["X-Request-Id"]
+        assert r1.headers["X-Request-ID"] != r2.headers["X-Request-ID"]
 
-    def test_tts_error_response_also_has_x_request_id(self, rest_client, rest_app):
-        """Middleware must add X-Request-Id even when the handler returns 422."""
+    def test_422_response_has_x_request_id(self, rest_client):
+        """X-Request-ID must be present even on validation-error responses."""
         resp = rest_client.post("/api/v1/tts/generate", json={"text": ""})
         assert resp.status_code == 422
-        assert "X-Request-Id" in resp.headers
+        assert "X-Request-ID" in resp.headers
 
     def test_model_status_response_has_x_request_id(self, rest_client, rest_app):
+        """X-Request-ID must be present on successful JSON responses."""
         mock_manager = MagicMock()
         mock_manager.get_all_status.return_value = _fake_model_statuses()
         with rest_app.container.model_manager_service.override(mock_manager):
             resp = rest_client.get("/api/v1/models/status")
-        assert "X-Request-Id" in resp.headers
+        assert "X-Request-ID" in resp.headers
+
+    def test_client_supplied_valid_uuid4_is_echoed(self, rest_client, rest_app):
+        """When the client sends a valid UUID4 as X-Request-ID the middleware
+        must echo the same value back in the response header unchanged."""
+        from uuid import uuid4
+
+        client_id = str(uuid4())  # standard hyphenated UUID4 — passes is_valid_uuid4
+        mock_cfg = AppConfig(device="cpu", watermark_available=False)
+        with rest_app.container.app_config.override(mock_cfg):
+            resp = rest_client.get(
+                "/api/v1/health",
+                headers={"X-Request-ID": client_id},
+            )
+        assert resp.headers["X-Request-ID"] == client_id
+
+    def test_client_supplied_invalid_id_is_replaced(self, rest_client, rest_app):
+        """When the client sends a non-UUID4 value for X-Request-ID the
+        middleware must reject it and generate a fresh 32-char hex ID.
+        The client's value must NOT appear in the response header."""
+        mock_cfg = AppConfig(device="cpu", watermark_available=False)
+        with rest_app.container.app_config.override(mock_cfg):
+            resp = rest_client.get(
+                "/api/v1/health",
+                headers={"X-Request-ID": "not-a-valid-uuid"},
+            )
+        rid = resp.headers["X-Request-ID"]
+        assert rid != "not-a-valid-uuid"
+        assert self._HEX32_RE.match(rid), f"Expected a generated 32-char hex ID, got {rid!r}"

@@ -26,6 +26,27 @@ Design constraints
 3. All object construction and wiring lives in ``infrastructure/container.py``.
    This file is intentionally kept minimal so the wiring stays in one
    declarative place and is easy to test via provider overrides.
+
+REST middleware stack (outermost → innermost, i.e. request arrival order)
+--------------------------------------------------------------------------
+CorrelationIdMiddleware  — raw ASGI middleware (asgi-correlation-id)
+                           Sets the ``correlation_id`` ContextVar and appends
+                           ``X-Request-ID`` to the response headers before any
+                           other middleware or route handler runs.
+
+RequestLoggingMiddleware — BaseHTTPMiddleware
+                           Measures wall-clock timing and emits one structured
+                           access-log record per request.  The CorrelationIdFilter
+                           on the JSON handler injects ``correlation_id`` into
+                           every LogRecord automatically — this middleware never
+                           touches the correlation ID directly.
+
+Registration order note
+-----------------------
+``app.add_middleware()`` prepends each middleware, so the *last* call becomes
+the *outermost* wrapper.  We therefore register RequestLoggingMiddleware first
+and CorrelationIdMiddleware last so that CorrelationIdMiddleware is outermost
+and fires before RequestLoggingMiddleware on every request.
 """
 
 from __future__ import annotations
@@ -98,19 +119,43 @@ def build_rest_app(watermark_available: bool) -> FastAPI:
     executed before any framework code (torch, chatterbox, fastapi) is
     imported for the first time.
 
-    The container is wired into routes_module via container.wire() — this call
-    is intentionally made ONCE per process (wiring modifies the module globally).
-    Tests must share one app instance and use app.container.provider.override().
+    The container is wired into routes_module via ``container.wire()`` — this
+    call is intentionally made ONCE per process (wiring modifies the routes
+    module globally).  Tests must share one app instance and use
+    ``app.container.provider.override()`` for per-test isolation.
+
+    Middleware registration order
+    -----------------------------
+    ``app.add_middleware()`` prepends each registration, so the last call
+    becomes the outermost middleware (first to receive each request).
+
+        add_middleware(RequestLoggingMiddleware)   ← registered first → inner
+        add_middleware(CorrelationIdMiddleware)    ← registered last  → outer
+
+    At runtime the request passes through:
+
+        CorrelationIdMiddleware → RequestLoggingMiddleware → route handler
+
+    This guarantees that the ``correlation_id`` ContextVar is set before
+    ``RequestLoggingMiddleware.dispatch()`` runs, so the CorrelationIdFilter
+    on the log handler can inject it into every access-log record.
 
     Args:
         watermark_available: True when the full PerTh watermarker is present.
 
     Returns:
-        FastAPI application instance with app.container set and lifespan wired.
+        FastAPI application instance.  ``app.container`` holds the DI
+        container for test provider overrides.
+
+    Raises:
+        ModuleNotFoundError: if the ``rest`` optional extra (fastapi, uvicorn,
+            asgi-correlation-id) is not installed.  cli.main() checks earlier
+            and produces a cleaner error, but this guard makes failure explicit.
     """
     from contextlib import asynccontextmanager
 
     import anyio.to_thread
+    from asgi_correlation_id import CorrelationIdMiddleware
     from fastapi import FastAPI
 
     from adapters.inbound.rest import routes as routes_module
@@ -124,8 +169,9 @@ def build_rest_app(watermark_available: bool) -> FastAPI:
     @asynccontextmanager
     async def lifespan(app: FastAPI):
         # ── STARTUP ────────────────────────────────────────────────────────
-        # Tune AnyIO's thread pool: 1 inference thread + headroom for admin
-        # ops (memory stats, status checks, upload I/O).
+        # Tune AnyIO's thread pool capacity.
+        # 1 thread for GPU/CPU inference (serialised by inference_semaphore)
+        # + headroom for admin I/O (disk probes, psutil, upload buffering).
         limiter = anyio.to_thread.current_default_thread_limiter()
         limiter.total_tokens = 10
 
@@ -144,11 +190,24 @@ def build_rest_app(watermark_available: bool) -> FastAPI:
         lifespan=lifespan,
     )
 
-    # Attach container to app — official dependency-injector pattern.
-    # Tests access overrides via: with app.container.provider.override(mock): ...
+    # Attach container to the app — official dependency-injector pattern.
+    # Tests access provider overrides via:
+    #     with app.container.<provider>.override(mock): ...
     app.container = container  # type: ignore[attr-defined]
 
-    app.add_middleware(RequestLoggingMiddleware)
     app.include_router(routes_module.router)
+
+    # ── Middleware registration (innermost → outermost) ────────────────────
+    # add_middleware() prepends, so last registered = outermost at runtime.
+
+    # Inner: timing + structured access log.
+    # The CorrelationIdFilter on the JSON handler injects correlation_id
+    # into every LogRecord automatically — no manual UUID work here.
+    app.add_middleware(RequestLoggingMiddleware)
+
+    # Outer: generates/validates/propagates the correlation ID ContextVar and
+    # appends X-Request-ID to every response header.
+    # Must be outermost so it fires before RequestLoggingMiddleware.
+    app.add_middleware(CorrelationIdMiddleware)
 
     return app

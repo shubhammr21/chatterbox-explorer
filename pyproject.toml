@@ -1,7 +1,8 @@
 [project]
-name = "chatterbox-demo"
+name = "chatterbox-explorer"
 version = "0.1.0"
 description = "Chatterbox TTS Explorer — Interactive Gradio demo for all Chatterbox capabilities"
+readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
     "chatterbox-tts",
@@ -10,5 +11,45 @@ dependencies = [
     "peft>=0.6.0",
 ]
 
+[project.scripts]
+chatterbox-explorer = "chatterbox_explorer.cli:main"
+
+[build-system]
+requires = ["uv_build>=0.11.7,<0.12"]
+build-backend = "uv_build"
+
 [dependency-groups]
-dev = []
+dev = [
+    { include-group = "test" },
+]
+test = [
+    "pytest>=9.0.3",
+    "pytest-cov>=7.1.0",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = [
+    "--tb=short",
+    "--strict-markers",
+    "-v",
+]
+markers = [
+    "unit: fast unit tests — no real models needed",
+    "integration: slow tests that load real Chatterbox models",
+    "slow: alias for integration",
+]
+
+[tool.coverage.run]
+source = ["src/chatterbox_explorer"]
+omit = [
+    "tests/*",
+    "src/chatterbox_explorer/adapters/primary/*",
+]
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = false

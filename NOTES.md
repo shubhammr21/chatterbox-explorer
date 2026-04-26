@@ -316,6 +316,51 @@ def get_memory_stats(device: str) -> dict:
 
 ---
 
+## Domain Layer TDD Implementation (Hexagonal Architecture — Phase 1)
+
+### What Was Created
+Three domain files and three matching test files as part of the hexagonal architecture refactor:
+
+**Implementation files (zero framework deps — stdlib + numpy only):**
+- `src/chatterbox_explorer/domain/models.py` — 9 pure dataclasses
+- `src/chatterbox_explorer/domain/languages.py` — 4 language constants extracted verbatim from app.py
+- `src/chatterbox_explorer/domain/presets.py` — 10 TTS + 6 Turbo presets with `get_preset_tts` / `get_preset_turbo` helpers
+
+**Test files (TDD — written before implementation):**
+- `tests/unit/domain/test_models.py` — 44 test functions across 9 test classes
+- `tests/unit/domain/test_languages.py` — 44 test functions across 6 test classes + 2 module purity tests
+- `tests/unit/domain/test_presets.py` — 66 test functions across 10 test classes + 3 module purity tests
+
+**Total: 154 tests — all passing in 0.16 s**
+
+### Key Design Decisions
+
+#### Domain purity enforced by tests
+Each module has `test_*_module_has_no_torch_import` and `test_*_module_has_no_gradio_import` tests. These use `importlib` + `vars(mod)` to verify no forbidden names appear in module globals at import time. This is a cheap, always-on architecture gate.
+
+#### PRESETS_TTS covers both Standard and Multilingual tabs
+The Multilingual tab uses the same `exaggeration / cfg_weight / temperature / rep_penalty / min_p / top_p` parameter set as Standard TTS, so a single `PRESETS_TTS` dict serves both. The only difference is `MultilingualTTSRequest` has `rep_penalty=2.0` as its default (higher than Standard's 1.2) to suppress artefacts on non-English languages.
+
+#### `PRESET_TTS_NAMES` / `PRESET_TURBO_NAMES` are derived from dict keys
+```
+PRESET_TTS_NAMES: list[str] = list(PRESETS_TTS.keys())
+```
+This means the name lists and the dicts are always in sync — no dual-maintenance risk. Tests verify `PRESET_TTS_NAMES == list(PRESETS_TTS.keys())` (order-preserving).
+
+#### `get_preset_tts` / `get_preset_turbo` are intentionally separate
+Even though `"🎯 Default"` exists in both dicts, the two functions are intentionally independent. `get_preset_tts("🤖 Voice Agent")` returns `None` because that preset only exists in Turbo — this is tested explicitly and is the correct behaviour for the service layer to rely on.
+
+#### `AudioResult.duration_s` guards against zero sample_rate
+```python
+if self.sample_rate <= 0:
+    return 0.0
+```
+Without this, passing an uninitialised `AudioResult(sample_rate=0, ...)` would raise `ZeroDivisionError` in property code. The guard makes the domain object safe to construct in tests without a real model.
+
+### Discovered During Implementation
+- `uv pip install -e .` was required before pytest could resolve `chatterbox_explorer` — the package was not editable-installed in the venv. Added as a setup step to remember.
+- The `field` import in `models.py` was included from the spec template but not ultimately needed (all fields use default values directly, not `field(default_factory=...)`). Kept for future use by consumers who may add mutable defaults.
+
 ## References
 
 - [Chatterbox GitHub](https://github.com/resemble-ai/chatterbox)

@@ -57,7 +57,7 @@ class TurboTTSRequest:
     """Input value-object for the Turbo TTS service.
 
     Turbo does NOT support exaggeration or cfg_weight — those params are absent.
-    norm_loudness normalises the reference audio to −27 LUFS before conditioning.
+    norm_loudness normalises the reference audio to -27 LUFS before conditioning.
     """
 
     text: str

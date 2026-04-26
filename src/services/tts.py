@@ -17,18 +17,18 @@ Services:
 
 from __future__ import annotations
 
-from collections.abc import Callable, Iterator
 import re
+from typing import TYPE_CHECKING
 
 import numpy as np
 
-from domain.models import (
-    AudioResult,
-    MultilingualTTSRequest,
-    TTSRequest,
-    TurboTTSRequest,
-)
-from ports.output import IAudioPreprocessor, IModelRepository
+from domain.models import AudioResult
+
+if TYPE_CHECKING:
+    from collections.abc import Callable, Iterator
+
+    from domain.models import MultilingualTTSRequest, TTSRequest, TurboTTSRequest
+    from ports.output import IAudioPreprocessor, IModelRepository
 
 # ──────────────────────────────────────────────────────────────────────────────
 # Pure helper — no dependencies, fully testable in isolation

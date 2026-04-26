@@ -229,3 +229,59 @@ class TestSetSeed:
             "set_seed(42.9) and set_seed(42) produced different output — "
             "int() coercion may not be working"
         )
+
+    # ── CUDA seed branch ──────────────────────────────────────────────────────
+
+    def test_set_seed_calls_cuda_manual_seed_when_cuda_available(self):
+        """When CUDA is available, set_seed must explicitly call
+        torch.cuda.manual_seed_all with the exact seed value.
+
+        torch.manual_seed() is also patched here because its CPython
+        implementation internally calls cuda.manual_seed_all when CUDA is
+        reported as available — without this extra patch the mock would be
+        called twice and assert_called_once_with would fail.
+        """
+        from unittest.mock import patch
+
+        with (
+            patch("torch.cuda.is_available", return_value=True),
+            patch("torch.manual_seed"),  # prevent internal cuda seed side-effect
+            patch("torch.cuda.manual_seed_all") as mock_cuda_seed,
+        ):
+            set_seed(42)
+
+        mock_cuda_seed.assert_called_once_with(42)
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# detect_device — forced-branch tests (mock torch availability flags)
+# ──────────────────────────────────────────────────────────────────────────────
+
+
+class TestDetectDeviceBranches:
+    """Force-patch torch availability flags to exercise every branch of
+    detect_device() regardless of the host hardware."""
+
+    def test_detect_device_returns_cuda_when_cuda_available(self):
+        """When torch.cuda.is_available() is True, detect_device must return 'cuda'."""
+        from unittest.mock import patch
+
+        with patch("torch.cuda.is_available", return_value=True):
+            result = detect_device()
+
+        assert result == "cuda"
+
+    def test_detect_device_returns_mps_when_only_mps_available(self):
+        """When CUDA is absent but MPS is available, detect_device must return 'mps'."""
+        from unittest.mock import MagicMock, patch
+
+        mock_mps = MagicMock()
+        mock_mps.is_available.return_value = True
+
+        with (
+            patch("torch.cuda.is_available", return_value=False),
+            patch.object(torch.backends, "mps", mock_mps, create=True),
+        ):
+            result = detect_device()
+
+        assert result == "mps"

@@ -53,11 +53,11 @@ class TestPresetCounts:
 class TestPresetNameLists:
     def test_preset_tts_names_list_matches_dict_keys(self):
         """PRESET_TTS_NAMES must be exactly the keys of PRESETS_TTS (same order)."""
-        assert PRESET_TTS_NAMES == list(PRESETS_TTS.keys())
+        assert list(PRESETS_TTS.keys()) == PRESET_TTS_NAMES
 
     def test_preset_turbo_names_list_matches_dict_keys(self):
         """PRESET_TURBO_NAMES must be exactly the keys of PRESETS_TURBO (same order)."""
-        assert PRESET_TURBO_NAMES == list(PRESETS_TURBO.keys())
+        assert list(PRESETS_TURBO.keys()) == PRESET_TURBO_NAMES
 
     def test_preset_tts_names_is_list(self):
         assert isinstance(PRESET_TTS_NAMES, list)

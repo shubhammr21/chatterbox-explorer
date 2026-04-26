@@ -17,9 +17,13 @@ Verdict thresholds (mirrors app.py logic):
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 from domain.models import WatermarkResult
-from domain.types import WatermarkVerdict
-from ports.output import IWatermarkDetector
+
+if TYPE_CHECKING:
+    from domain.types import WatermarkVerdict
+    from ports.output import IWatermarkDetector
 
 
 class WatermarkService:

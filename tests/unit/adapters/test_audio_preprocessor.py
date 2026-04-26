@@ -15,7 +15,10 @@ Frame-alignment arithmetic (24 kHz reference):
 
 from __future__ import annotations
 
-from pathlib import Path
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 import numpy as np
 import pytest
@@ -88,7 +91,7 @@ class TestTorchAudioPreprocessor:
         )
 
     def test_preprocess_two_complete_frames_returns_same_path(self, preprocessor, tmp_path):
-        """1920 samples = exactly 2 × 40 ms frames — target_len == wav.shape[-1],
+        """1920 samples = exactly 2 * 40 ms frames — target_len == wav.shape[-1],
         so the fast path triggers and no temp file is written.
         """
         path = _make_wav(tmp_path, n_samples=1920, sr=24_000)
@@ -241,7 +244,7 @@ class TestToGradioAudio:
         _, arr = to_gradio_audio(result)
 
         # After normalising by peak=2.0: [1.0, -0.5, 0.25]
-        # After ×32767:                  [32767, -16383, 8191]
+        # After *32767:                  [32767, -16383, 8191]
         assert arr.max() <= 32767
         assert arr.min() >= -32768
         # The positive peak (2.0) should map to the maximum int16 positive value
@@ -255,7 +258,7 @@ class TestToGradioAudio:
         result = self._make_result(samples)
         _, arr = to_gradio_audio(result)
 
-        # 0.5 × 32767 = 16383.5 → 16383 (truncated to int16)
+        # 0.5 * 32767 = 16383.5 → 16383 (truncated to int16)
         expected_max = int(0.5 * 32767)
         assert arr.max() == expected_max or arr.max() == expected_max + 1  # rounding tolerance
 

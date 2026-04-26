@@ -11,19 +11,22 @@ an architecture violation.
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from collections.abc import Iterator
+from typing import TYPE_CHECKING
 
-from domain.models import (
-    AudioResult,
-    MemoryStats,
-    ModelStatus,
-    MultilingualTTSRequest,
-    TTSRequest,
-    TurboTTSRequest,
-    VoiceConversionRequest,
-    WatermarkResult,
-)
-from domain.types import ModelKey
+if TYPE_CHECKING:
+    from collections.abc import Iterator
+
+    from domain.models import (
+        AudioResult,
+        MemoryStats,
+        ModelStatus,
+        MultilingualTTSRequest,
+        TTSRequest,
+        TurboTTSRequest,
+        VoiceConversionRequest,
+        WatermarkResult,
+    )
+    from domain.types import ModelKey
 
 
 class ITTSService(ABC):

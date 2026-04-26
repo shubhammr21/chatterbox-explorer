@@ -17,7 +17,7 @@ class TorchAudioPreprocessor(IAudioPreprocessor):
     Root cause (chatterbox/models/s3gen/s3gen.py → embed_ref):
       mel extractor  — 24 kHz, hop=480 → 50 frames/sec (20 ms/frame)
       S3 tokenizer   — 16 kHz at 25 tokens/sec → 40 ms/token (2 frames/token)
-      Invariant: mel_len = 2 × token_len
+      Invariant: mel_len = 2 * token_len
 
     This invariant holds exactly when audio duration is a multiple of 40 ms.
     If the tail of the reference clip does not fill a complete 40 ms frame the

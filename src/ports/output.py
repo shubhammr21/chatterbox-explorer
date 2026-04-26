@@ -13,11 +13,14 @@ Forbidden: torch, gradio, chatterbox, psutil, huggingface_hub.
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from collections.abc import Iterator
-from typing import Any
+from typing import TYPE_CHECKING
 
-from domain.models import MemoryStats
-from domain.types import ModelKey, ModelMetadata
+if TYPE_CHECKING:
+    from collections.abc import Iterator
+    from typing import Any
+
+    from domain.models import MemoryStats
+    from domain.types import ModelKey, ModelMetadata
 
 
 class IModelRepository(ABC):

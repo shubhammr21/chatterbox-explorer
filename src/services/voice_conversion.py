@@ -10,10 +10,15 @@ architecture violation.
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 import numpy as np
 
-from domain.models import AudioResult, VoiceConversionRequest
-from ports.output import IAudioPreprocessor, IModelRepository
+from domain.models import AudioResult
+
+if TYPE_CHECKING:
+    from domain.models import VoiceConversionRequest
+    from ports.output import IAudioPreprocessor, IModelRepository
 
 
 class VoiceConversionService:

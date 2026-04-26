@@ -26,7 +26,7 @@ class PsutilMemoryMonitor(IMemoryMonitor):
           detection only, not for showing users "how full is the GPU".
         - recommended_max_memory() ≈ 75 % of physical RAM — use as the
           practical capacity ceiling, not total physical RAM.
-        - Never compute total − free on macOS; always use total − available.
+        - Never compute total - free on macOS; always use total - available.
           The "free" figure is almost always < 200 MB due to kernel caching.
     """
 
@@ -72,7 +72,7 @@ class PsutilMemoryMonitor(IMemoryMonitor):
             sys_total_gb=round(vm.total / 1024**3, 1),
             sys_used_gb=round(vm.used / 1024**3, 1),
             sys_avail_gb=round(vm.available / 1024**3, 1),
-            sys_percent=vm.percent,  # (total − available) / total × 100
+            sys_percent=vm.percent,  # (total - available) / total * 100
             proc_rss_gb=round(rss / 1024**3, 2),
         )
 

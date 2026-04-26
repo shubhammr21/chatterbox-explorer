@@ -75,6 +75,30 @@ class TestModelManagerLoad:
         with pytest.raises(RuntimeError):
             svc.load("tts")
 
+    def test_load_reraises_runtime_error_from_repo(self, mock_model_repo, mock_memory_monitor):
+        """A RuntimeError raised by repo.get_model must be re-raised as-is,
+        preserving the original message (not wrapped in a new RuntimeError)."""
+        mock_model_repo.is_loaded.return_value = False
+        mock_model_repo.get_model.side_effect = RuntimeError("OOM")
+
+        svc = ModelManagerService(mock_model_repo, mock_memory_monitor)
+        with pytest.raises(RuntimeError, match="OOM"):
+            svc.load("tts")
+
+    def test_load_wraps_value_error_in_runtime_error(self, mock_model_repo, mock_memory_monitor):
+        """A non-RuntimeError exception from repo.get_model must be caught and
+        re-raised as RuntimeError with the original error set as __cause__."""
+        mock_model_repo.is_loaded.return_value = False
+        original_error = ValueError("bad config")
+        mock_model_repo.get_model.side_effect = original_error
+
+        svc = ModelManagerService(mock_model_repo, mock_memory_monitor)
+        with pytest.raises(RuntimeError) as exc_info:
+            svc.load("tts")
+
+        assert isinstance(exc_info.value.__cause__, ValueError)
+        assert "bad config" in str(exc_info.value.__cause__)
+
 
 # ──────────────────────────────────────────────────────────────────────────────
 # unload()

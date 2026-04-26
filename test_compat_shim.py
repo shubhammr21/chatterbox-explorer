@@ -15,8 +15,11 @@ Exit code is 0 when every test passes, 1 on any failure.
 from __future__ import annotations
 
 import argparse
-from collections.abc import Callable
 import logging
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 import sys
 import traceback
 import unittest.mock as mock

@@ -983,7 +983,7 @@ def build_demo(
                 )
 
             # ── Tab 7: About & Reference ──────────────────────────────────────
-            with gr.Tab("ℹ️ About & Reference"):
+            with gr.Tab("About & Reference"):
                 gr.Markdown(
                     f"## 🎙️ Chatterbox TTS Explorer  (v2)\n\n"
                     "Built on [Resemble AI Chatterbox](https://github.com/resemble-ai/chatterbox) "

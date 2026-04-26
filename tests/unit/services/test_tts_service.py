@@ -278,6 +278,18 @@ class TestTurboTTSService:
         with pytest.raises(ValueError, match="5 seconds"):
             list(svc.generate_stream(req))
 
+    def test_turbo_stream_converts_assertion_error_to_value_error(
+        self, mock_model_repo, mock_preprocessor, mock_model
+    ):
+        """AssertionError raised on the first iteration of generate_stream must
+        be surfaced as ValueError when the caller drives the generator with
+        next() — covers lines 267-268 of the stream exception handler."""
+        mock_model.generate.side_effect = AssertionError("audio must be > 5 seconds")
+        svc = TurboTTSService(mock_model_repo, mock_preprocessor)
+        req = TurboTTSRequest(text="Hello.")
+        with pytest.raises(ValueError, match="5 seconds"):
+            next(svc.generate_stream(req))
+
 
 # ──────────────────────────────────────────────────────────────────────────────
 # MultilingualTTSService

@@ -363,7 +363,7 @@ PRESETS_TURBO: dict[str, dict] = {
 | Top-K | **1000** | Wide candidate pool |
 | Top-P | **0.95** | Standard nucleus sampling |
 | Rep Penalty | **1.20** | Light repetition suppression |
-| Norm Loudness | **✓** | Normalises reference to −27 LUFS |
+| Norm Loudness | **✓** | Normalises reference to -27 LUFS |
 """,
         "sample_text": (
             "Hi there, Sarah here from MochaFone calling you back [chuckle]. "
@@ -451,7 +451,7 @@ PRESETS_TURBO: dict[str, dict] = {
 
 > **Key insight:** `top_k=2000` (maximum) is the Turbo equivalent of lowering
 > `cfg_weight` in Standard — it opens up the model's creative range.
-> `norm_loudness=False` preserves dramatic dynamics that −27 LUFS would flatten.
+> `norm_loudness=False` preserves dramatic dynamics that -27 LUFS would flatten.
 """,
         "sample_text": (
             "Well, well, well... [chuckle] Look who finally decided to show up. "

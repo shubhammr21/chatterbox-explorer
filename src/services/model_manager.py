@@ -12,11 +12,16 @@ Architecture rules enforced here:
 
 from __future__ import annotations
 
-from collections.abc import Iterator
+from typing import TYPE_CHECKING
 
-from domain.models import MemoryStats, ModelStatus
-from domain.types import ModelKey
-from ports.output import IMemoryMonitor, IModelRepository
+from domain.models import ModelStatus
+
+if TYPE_CHECKING:
+    from collections.abc import Iterator
+
+    from domain.models import MemoryStats
+    from domain.types import ModelKey
+    from ports.output import IMemoryMonitor, IModelRepository
 
 
 class ModelManagerService:

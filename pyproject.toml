@@ -134,59 +134,23 @@ unfixable = [
 ]
 
 [tool.ruff.lint.per-file-ignores]
-# Tests: relax naming, allow magic values, skip import-order pedantry.
-"tests/**" = ["N", "SIM", "RUF012", "TC001", "TC002", "TC003", "E402", "N818", "RUF002", "RUF003"]
-# Gradio handlers/UI: complex wiring; skip simplification rules.
-"src/adapters/primary/**" = ["SIM", "B"]
-# CLI entry point: print() is intentional startup output.
-"src/cli.py" = ["T20"]
-# __init__ files: star-imports are used for re-exports.
-"**/__init__.py" = ["F401", "F403"]
-# ── Domain / ports / services ─────────────────────────────────────────────────
-
-# SAMPLE_TEXTS contains real multilingual sentences in Greek, Cyrillic,
-# Turkish (dotless-ı), Arabic, Chinese (fullwidth commas) — every character
-# is correct native script, not an accidental lookalike substitution.
-"src/domain/languages.py" = ["RUF001"]
-
-# Math notation in docstring: −27 LUFS uses the proper minus sign, not a hyphen.
-"src/domain/models.py" = ["RUF002"]
-
-# Port ABCs define abstract method signatures; domain models/types imported at
-# the top level are needed by IDEs that analyse without evaluating TYPE_CHECKING.
-# Services both annotate with and instantiate domain models at runtime, making a
-# clean split across TYPE_CHECKING impossible without careful per-symbol analysis.
-# TC001/TC003 are aspirational optimisations here, not correctness issues.
-"src/ports/input.py"  = ["TC001", "TC003"]
-"src/ports/output.py" = ["TC001", "TC003"]
-"src/services/tts.py"               = ["TC001", "TC003"]
-"src/services/voice_conversion.py"  = ["TC001", "TC003"]
-"src/services/model_manager.py"     = ["TC001", "TC003"]
-"src/services/watermark.py"         = ["TC001", "TC003"]
-
-# Math notation in docstring: × (multiplication sign) is intentional.
-"src/adapters/secondary/audio.py" = ["RUF002"]
-
-# Math notation in docstrings and comments: × and − are intentional symbols.
-"src/adapters/secondary/memory.py" = ["RUF002", "RUF003"]
-
-# Tab names and markdown labels intentionally use emoji (ℹ️, 🗂️, etc.)
-# and UI tooltip strings use en-dash ranges (1.5–2.0) for readability.
-"src/adapters/primary/gradio/ui.py"       = ["RUF001"]
-"src/adapters/primary/gradio/handlers.py" = ["RUF001"]
-
-# presets.py at project root uses en-dash ranges in documentation tables;
-# these are intentional typographic choices, not accidental lookalikes.
-"presets.py" = ["RUF001", "RUF002", "RUF003"]
-
-# ── Tests ─────────────────────────────────────────────────────────────────────
-
-# Tests import domain models for fixture construction (both annotation and
-# instantiation); TC rules would require splitting every import unnecessarily.
+# Tests: relax naming conventions (test functions/classes differ from production).
 # E402: imports after pytest.importorskip() must follow the skip guard by design.
-# N818: sentinel exception classes in tests are intentionally terse.
-# RUF002: math symbols (×) are legitimate in test docstrings.
-"test_*.py" = ["TC001", "TC002", "TC003", "N818", "RUF002"]
+# N818: sentinel exception classes in tests are intentionally short (e.g. _Boom).
+"tests/**" = ["N", "E402", "N818"]
+"test_*.py" = ["N818"]
+# Gradio primary adapters: complex multi-argument event wiring makes
+# individual-statement simplification rules noisy and unhelpful.
+"src/adapters/primary/**" = ["SIM", "B"]
+# CLI entry point: print() is used intentionally for startup progress messages.
+"src/cli.py" = ["T20"]
+# __init__ files: star-imports / re-exports are the intended pattern.
+"**/__init__.py" = ["F401", "F403"]
+# SAMPLE_TEXTS contains real multilingual sentences in Greek, Cyrillic,
+# Turkish (dotless-i), Arabic, Chinese and Hebrew — every character is correct
+# native script for that language, not an accidental lookalike substitution.
+# RUF001 cannot distinguish intentional multilingual data from typos here.
+"src/domain/languages.py" = ["RUF001"]
 
 [tool.ruff.lint.isort]
 # Treat src/ as a known first-party namespace so ruff groups it correctly.
@@ -268,21 +232,13 @@ invalid-type-arguments = "error"
 branch = true
 source = ["src"]
 omit = [
-    # Primary adapters: Gradio UI wiring is tested via integration tests only.
+    # Primary adapters: Gradio UI requires a running server; tested at integration level.
     "src/adapters/primary/*",
-    # Application entry point and DI root: tested at integration level.
+    # Entry point and DI bootstrap: require the full application stack to be wired;
+    # tested at integration level (test_model_load.py).
     "src/cli.py",
     "src/bootstrap.py",
-    # Logging / warning setup: only runs at process startup.
-    "src/logging_config.py",
-    # Port input ABCs: all method bodies are `...` (abstract); nothing to execute.
-    "src/ports/input.py",
-    # Secondary infrastructure adapters: require real HF model downloads, psutil,
-    # or the perth library — covered by integration tests, not unit tests.
-    "src/adapters/secondary/model_loader.py",
-    "src/adapters/secondary/memory.py",
-    "src/adapters/secondary/watermark.py",
-    # Empty stubs — nothing to measure.
+    # Empty module stubs — no executable statements.
     "src/__init__.py",
     "src/__main__.py",
 ]
@@ -294,7 +250,12 @@ skip_empty    = true
 # Threshold applies to the measured scope (domain + ports/output + services +
 # audio + device adapters).  Infrastructure adapters and wiring code that
 # require integration tests are excluded from measurement above.
-fail_under    = 90
+# Threshold reflects all measurable source: domain, ports, services, and all
+# secondary adapters.  Omitted scope is limited to Gradio UI (needs server) and
+# the two entry-point files (cli.py, bootstrap.py).  Any addition to the omit
+# list above must be accompanied by a comment justifying why unit tests cannot
+# be written for that code.
+fail_under    = 95
 precision     = 1
 # Exclude patterns that are unreachable by design.
 exclude_also = [

@@ -1,0 +1,74 @@
+# ── Virtual environment ────────────────────────────────────────────────────────
+.venv/
+venv/
+env/
+
+# ── Python bytecode ───────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+
+# ── uv ────────────────────────────────────────────────────────────────────────
+# Keep uv.lock (reproducible installs) but ignore build artifacts
+*.egg-info/
+dist/
+build/
+
+# ── HuggingFace model cache ───────────────────────────────────────────────────
+# Models are downloaded to ~/.cache/huggingface/hub/ — not in the repo
+# If someone stores models locally in the project, ignore them
+models/
+*.safetensors
+*.gguf
+*.bin
+*.pt
+*.pth
+
+# ── Audio outputs ─────────────────────────────────────────────────────────────
+outputs/
+*.wav
+*.mp3
+*.flac
+*.ogg
+*.m4a
+
+# ── Gradio temp files ─────────────────────────────────────────────────────────
+gradio_cached_examples/
+flagged/
+*.tmp
+
+# ── macOS ─────────────────────────────────────────────────────────────────────
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+Icon?
+ehthumbs.db
+Thumbs.db
+
+# ── IDE / editor ──────────────────────────────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.cursor/
+
+# ── Secrets / environment ─────────────────────────────────────────────────────
+.env
+.env.local
+.env.*.local
+*.pem
+*.key
+
+# ── Logs ──────────────────────────────────────────────────────────────────────
+*.log
+logs/
+
+# ── Test artifacts ────────────────────────────────────────────────────────────
+.pytest_cache/
+.coverage
+htmlcov/

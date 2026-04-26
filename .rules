@@ -1,0 +1,76 @@
+# Development Rules
+
+- ALWAYS use ROUTER.md before starting any task
+- ALWAYS follow FLOW_CONTROL.md after selecting a flow
+- NEVER skip planning phase
+
+## Thinking Rules
+- Always define the problem before coding
+- Do not write code if requirements are unclear
+- Ask questions or research instead of assuming
+- Break problems into smaller parts before implementation
+- Validate logic with examples before coding
+
+## Design Rules
+- Always create a plan before implementation (PLAN.md)
+- Prefer diagrams (Mermaid) for flows and architecture
+- Identify constraints and limitations explicitly
+- Avoid workaround solutions unless documented
+
+## Knowledge Rules
+- Document every new discovery in notes
+- Reuse knowledge instead of rediscovering
+- Track decisions and rejected alternatives
+
+## Coding Rules
+- Code only after plan is approved
+- Keep functions small and single-purpose
+- Prefer readability over cleverness
+- Add tests or validation where possible
+
+## Agent Behavior Rules
+- NEVER jump directly to code generation
+- ALWAYS propose a plan first
+- Highlight uncertainties explicitly
+- Ask clarifying questions when needed
+
+## Tooling & Ecosystem Rules
+
+- ALWAYS evaluate existing libraries, frameworks, or built-in features before writing custom code
+- DO NOT reinvent solutions unless necessary
+
+- ALWAYS consult official documentation and real examples before implementation
+- AVOID generic or assumption-based coding
+
+- USE only well-supported, appropriate tools
+- JUSTIFY why a tool/library is selected
+
+- FOLLOW agreed design patterns strictly
+- DO NOT introduce new patterns without discussion
+
+- IDENTIFY opportunities to improve:
+  - code quality
+  - structure
+  - maintainability
+
+- DOCUMENT improvements in NOTES.md or propose in PLAN.md
+
+- PREFER simplicity over unnecessary abstraction or dependencies
+
+## Quality & Delivery Rules
+
+- ALWAYS review and refine code after implementation
+- EXPECT first solution to be imperfect; iterate
+
+- DEFINE testing strategy during planning
+- WRITE tests for critical logic and edge cases
+
+- USE version control with clear and meaningful commits
+
+- IDENTIFY risks and failure scenarios early
+
+- DO NOT over-engineer; prefer simple and effective solutions
+
+- COMMUNICATE decisions, trade-offs, and reasoning clearly
+
+- USE small prototypes when uncertainty cannot be resolved through research

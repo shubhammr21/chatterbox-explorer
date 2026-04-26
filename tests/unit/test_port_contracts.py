@@ -25,7 +25,7 @@ No mocks required — these tests probe pure class-level metadata.
 
 from __future__ import annotations
 
-from abc import ABC
+from abc import ABC, ABCMeta
 
 import pytest
 
@@ -42,7 +42,7 @@ from ports.input import (
 # Registry: (ABC class, expected abstract method names)
 # ──────────────────────────────────────────────────────────────────────────────
 
-_ABC_REGISTRY: list[tuple[type, frozenset[str]]] = [
+_ABC_REGISTRY: list[tuple[ABCMeta, frozenset[str]]] = [
     (ITTSService, frozenset({"generate", "generate_stream"})),
     (ITurboTTSService, frozenset({"generate", "generate_stream"})),
     (IMultilingualTTSService, frozenset({"generate", "generate_stream"})),
@@ -66,7 +66,7 @@ class TestPortABCContracts:
     """Universal structural invariants that every primary-port ABC must satisfy."""
 
     @pytest.mark.parametrize("cls,_expected", _ABC_REGISTRY, ids=_ABC_IDS)
-    def test_is_subclass_of_abc(self, cls: type, _expected: frozenset[str]) -> None:
+    def test_is_subclass_of_abc(self, cls: ABCMeta, _expected: frozenset[str]) -> None:
         """Every driving-port interface must inherit from :class:`abc.ABC`."""
         assert issubclass(cls, ABC), (
             f"{cls.__name__} must be a subclass of abc.ABC — "
@@ -74,7 +74,9 @@ class TestPortABCContracts:
         )
 
     @pytest.mark.parametrize("cls,_expected", _ABC_REGISTRY, ids=_ABC_IDS)
-    def test_has_at_least_one_abstract_method(self, cls: type, _expected: frozenset[str]) -> None:
+    def test_has_at_least_one_abstract_method(
+        self, cls: ABCMeta, _expected: frozenset[str]
+    ) -> None:
         """Every ABC must declare at least one @abstractmethod so it cannot
         be instantiated without a concrete implementation."""
         assert len(cls.__abstractmethods__) >= 1, (
@@ -84,16 +86,16 @@ class TestPortABCContracts:
 
     @pytest.mark.parametrize("cls,_expected", _ABC_REGISTRY, ids=_ABC_IDS)
     def test_direct_instantiation_raises_type_error(
-        self, cls: type, _expected: frozenset[str]
+        self, cls: ABCMeta, _expected: frozenset[str]
     ) -> None:
         """Python's ABC machinery must prevent direct construction of any
         primary-port interface."""
         with pytest.raises(TypeError):
-            cls()  # type: ignore[abstract]
+            type.__call__(cls)
 
     @pytest.mark.parametrize("cls,expected_methods", _ABC_REGISTRY, ids=_ABC_IDS)
     def test_abstract_method_names_match_spec(
-        self, cls: type, expected_methods: frozenset[str]
+        self, cls: ABCMeta, expected_methods: frozenset[str]
     ) -> None:
         """The exact set of abstract method names must match the documented
         interface spec — catches accidental renames or missing declarations."""

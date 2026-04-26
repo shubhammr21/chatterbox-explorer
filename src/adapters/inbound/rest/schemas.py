@@ -29,7 +29,7 @@ Allowed imports
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
 from pydantic import BaseModel, Field
 
@@ -43,6 +43,7 @@ if TYPE_CHECKING:
         TurboTTSRequest,
         WatermarkResult,
     )
+    from domain.types import LanguageCode
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -147,7 +148,7 @@ class MultilingualRequestSchema(BaseModel):
 
         return MultilingualTTSRequest(
             text=self.text,
-            language=self.language,
+            language=cast("LanguageCode", self.language),
             ref_audio_path=None,
             exaggeration=self.exaggeration,
             cfg_weight=self.cfg_weight,

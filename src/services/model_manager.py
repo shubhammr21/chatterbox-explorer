@@ -15,6 +15,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from domain.models import ModelStatus
+from ports.input import IModelManagerService
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
@@ -24,7 +25,7 @@ if TYPE_CHECKING:
     from ports.output import IMemoryMonitor, IModelRepository
 
 
-class ModelManagerService:
+class ModelManagerService(IModelManagerService):
     """Orchestrates loading, unloading, downloading and status reporting
     for all Chatterbox models.
 

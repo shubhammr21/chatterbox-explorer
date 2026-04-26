@@ -390,8 +390,9 @@ class TestConfigureJson:
         )
         # Apply every filter on every root handler to the record.
         for handler in logging.getLogger().handlers:
-            for f in handler.filters:
-                f.filter(record)
+            for log_filter in handler.filters:
+                if isinstance(log_filter, logging.Filter):
+                    log_filter.filter(record)
 
         assert hasattr(record, "correlation_id"), (
             "CorrelationIdFilter did not attach correlation_id to the LogRecord"

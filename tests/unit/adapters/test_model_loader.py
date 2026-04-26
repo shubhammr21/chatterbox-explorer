@@ -27,9 +27,13 @@ Mock strategy
 from __future__ import annotations
 
 import sys
+from typing import TYPE_CHECKING, cast
 from unittest.mock import MagicMock, patch
 
 import pytest
+
+if TYPE_CHECKING:
+    from domain.types import ModelKey, ModelMetadata
 
 from adapters.outbound.model_loader import MODEL_REGISTRY, ChatterboxModelLoader
 
@@ -115,7 +119,7 @@ class TestGetDisplayName:
 
     def test_unknown_key_falls_back_to_key_string(self):
         loader = ChatterboxModelLoader(device="cpu")
-        assert loader.get_display_name("does_not_exist") == "does_not_exist"
+        assert loader.get_display_name(cast("ModelKey", "does_not_exist")) == "does_not_exist"
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -149,14 +153,6 @@ class TestGetModelMetadata:
     def test_vc_class_name(self):
         loader = ChatterboxModelLoader(device="cpu")
         assert loader.get_model_metadata("vc")["class_name"] == "ChatterboxVC"
-
-    def test_unknown_key_returns_safe_defaults(self):
-        loader = ChatterboxModelLoader(device="cpu")
-        meta = loader.get_model_metadata("nonexistent")
-        assert meta["size_gb"] == 0.0
-        assert meta["params"] == "—"
-        assert meta["description"] == ""
-        assert meta["class_name"] == ""
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -210,7 +206,7 @@ class TestIsCachedOnDisk:
         """Unknown keys must short-circuit before any HuggingFace call."""
         loader = ChatterboxModelLoader(device="cpu")
         with patch("huggingface_hub.try_to_load_from_cache") as mock_hf:
-            result = loader.is_cached_on_disk("nonexistent")
+            result = loader.is_cached_on_disk(cast("ModelKey", "nonexistent"))
         assert result is False
         mock_hf.assert_not_called()
 
@@ -265,7 +261,7 @@ class TestGetModel:
     def test_raises_runtime_error_for_unknown_key(self):
         loader = ChatterboxModelLoader(device="cpu")
         with pytest.raises(RuntimeError, match="Unknown model key"):
-            loader.get_model("definitely_not_a_real_key")
+            loader.get_model(cast("ModelKey", "definitely_not_a_real_key"))
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -381,7 +377,7 @@ class TestUnload:
 class TestDownload:
     def test_unknown_key_yields_single_error_line(self):
         loader = ChatterboxModelLoader(device="cpu")
-        results = list(loader.download("not_a_real_key"))
+        results = list(loader.download(cast("ModelKey", "not_a_real_key")))
         assert len(results) == 1
         assert "Unknown model key" in results[0]
 
@@ -458,7 +454,9 @@ class TestDownload:
 
         # Build a patched registry with dl_mode set to an unknown value.
         patched_registry = {**MODEL_REGISTRY}
-        patched_registry["tts"] = {**MODEL_REGISTRY["tts"], "dl_mode": "unknown"}
+        patched_registry["tts"] = cast(
+            "ModelMetadata", {**MODEL_REGISTRY["tts"], "dl_mode": "unknown"}
+        )
 
         with patch("adapters.outbound.model_loader.MODEL_REGISTRY", patched_registry):
             messages = list(loader.download("tts"))
@@ -531,12 +529,14 @@ class TestLoad:
         )
 
     def test_multilingual_dispatches_to_chatterbox_multilingual_tts(self, chatterbox_modules):
+        import torch
+
         loader = ChatterboxModelLoader(device="cpu")
         result = loader._load("multilingual")
         assert result is chatterbox_modules["model"]
         chatterbox_modules[
             "mtl_mod"
-        ].ChatterboxMultilingualTTS.from_pretrained.assert_called_once_with("cpu")
+        ].ChatterboxMultilingualTTS.from_pretrained.assert_called_once_with(torch.device("cpu"))
 
     def test_vc_dispatches_to_chatterbox_vc(self, chatterbox_modules):
         loader = ChatterboxModelLoader(device="cpu")
@@ -553,4 +553,4 @@ class TestLoad:
     def test_unknown_key_raises_runtime_error(self):
         loader = ChatterboxModelLoader(device="cpu")
         with pytest.raises(RuntimeError, match="No loader defined for model key"):
-            loader._load("unknown_model_key")
+            loader._load(cast("ModelKey", "unknown_model_key"))

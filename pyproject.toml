@@ -168,6 +168,11 @@ unfixable = [
 "src/adapters/inbound/**" = ["SIM", "B"]
 # CLI entry point: print() is used intentionally for startup progress messages.
 "src/cli.py" = ["T20"]
+# compat.py uses setattr() deliberately: direct attribute assignment on the
+# typed @contextmanager object fails ty (no such attribute declared on the
+# inferred type), so setattr() is the only suppression-free fix.  B010's
+# assumption that setattr == direct assignment is a false positive here.
+"src/compat.py" = ["B010"]
 # __init__ files: star-imports / re-exports are the intended pattern.
 "**/__init__.py" = ["F401", "F403"]
 # SAMPLE_TEXTS contains real multilingual sentences in Greek, Cyrillic,

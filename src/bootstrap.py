@@ -162,6 +162,17 @@ def build_rest_app(watermark_available: bool) -> FastAPI:
     from adapters.inbound.rest.middleware import RequestLoggingMiddleware
     from infrastructure.container import AppContainer
 
+    class ChatterboxAPI(FastAPI):
+        """FastAPI subclass that carries a typed reference to the DI container.
+
+        Declaring ``container`` as a class-level annotation (with no default)
+        means the attribute must be assigned before use, which the type checker
+        can verify, while avoiding any runtime overhead beyond a normal
+        instance attribute assignment.
+        """
+
+        container: AppContainer
+
     container = AppContainer()
     container.config.watermark_available.from_value(watermark_available)
     container.wire(modules=[routes_module])
@@ -180,7 +191,7 @@ def build_rest_app(watermark_available: bool) -> FastAPI:
         # ── SHUTDOWN ───────────────────────────────────────────────────────
         container.unwire()
 
-    app = FastAPI(
+    app = ChatterboxAPI(
         title="Chatterbox TTS API",
         version="1.0.0",
         description=(
@@ -193,7 +204,7 @@ def build_rest_app(watermark_available: bool) -> FastAPI:
     # Attach container to the app — official dependency-injector pattern.
     # Tests access provider overrides via:
     #     with app.container.<provider>.override(mock): ...
-    app.container = container  # type: ignore[attr-defined]
+    app.container = container
 
     app.include_router(routes_module.router)
 

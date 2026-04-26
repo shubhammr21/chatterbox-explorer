@@ -24,7 +24,7 @@ Architecture contract:
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
 import gradio as gr
 
@@ -48,6 +48,7 @@ if TYPE_CHECKING:
     # keeping full type-checker visibility.  from __future__ import annotations
     # (above) ensures all annotations are treated as strings, so these imports
     # are never needed at runtime.
+    from domain.types import LanguageCode, ModelKey
     from ports.input import (
         IModelManagerService,
         IMultilingualTTSService,
@@ -213,7 +214,7 @@ class GradioHandlers:
             lang_code = lang.split(" ")[0]  # "fr - French" → "fr"
             request = MultilingualTTSRequest(
                 text=text,
-                language=lang_code,
+                language=cast("LanguageCode", lang_code),
                 ref_audio_path=ref_audio or None,
                 exaggeration=float(exag),
                 cfg_weight=float(cfg),
@@ -303,7 +304,7 @@ class GradioHandlers:
         render of the status table after the load attempt.
         """
         try:
-            log_msg = self._manager.load(key)
+            log_msg = self._manager.load(cast("ModelKey", key))
         except Exception as e:
             log_msg = f"❌  Load failed — {e}"
         return self.render_manager_html(), log_msg
@@ -314,7 +315,7 @@ class GradioHandlers:
         Returns ``(html_panel, log_message)``.  The service handles the
         5-step MPS/CUDA memory-flush recipe; this handler only wraps it.
         """
-        log_msg = self._manager.unload(key)
+        log_msg = self._manager.unload(cast("ModelKey", key))
         return self.render_manager_html(), log_msg
 
     def handle_download(self, key: str):
@@ -325,7 +326,7 @@ class GradioHandlers:
         status panel so the UI reflects current disk/memory state in real time.
         """
         try:
-            for log_line in self._manager.download(key):
+            for log_line in self._manager.download(cast("ModelKey", key)):
                 yield self.render_manager_html(), log_line
         except Exception as e:
             yield self.render_manager_html(), f"❌  Download failed: {e}"

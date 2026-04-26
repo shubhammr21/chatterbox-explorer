@@ -20,13 +20,14 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from domain.models import WatermarkResult
+from ports.input import IWatermarkService
 
 if TYPE_CHECKING:
     from domain.types import WatermarkVerdict
     from ports.output import IWatermarkDetector
 
 
-class WatermarkService:
+class WatermarkService(IWatermarkService):
     """Detects PerTh watermarks in generated audio clips.
 
     Args:

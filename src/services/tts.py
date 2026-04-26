@@ -23,6 +23,7 @@ from typing import TYPE_CHECKING
 import numpy as np
 
 from domain.models import AudioResult
+from ports.input import IMultilingualTTSService, ITTSService, ITurboTTSService
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterator
@@ -75,7 +76,7 @@ def _tensor_to_numpy(wav) -> np.ndarray:
 # ──────────────────────────────────────────────────────────────────────────────
 
 
-class TTSService:
+class TTSService(ITTSService):
     """Domain service for Standard ChatterboxTTS generation.
 
     Depends on:
@@ -173,7 +174,7 @@ class TTSService:
 # ──────────────────────────────────────────────────────────────────────────────
 
 
-class TurboTTSService:
+class TurboTTSService(ITurboTTSService):
     """Domain service for ChatterboxTurboTTS generation.
 
     Key differences from :class:`TTSService`:
@@ -276,7 +277,7 @@ class TurboTTSService:
 # ──────────────────────────────────────────────────────────────────────────────
 
 
-class MultilingualTTSService:
+class MultilingualTTSService(IMultilingualTTSService):
     """Domain service for ChatterboxMultilingualTTS generation (23 languages).
 
     Language handling:

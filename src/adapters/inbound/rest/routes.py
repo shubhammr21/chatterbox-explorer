@@ -29,7 +29,7 @@ from __future__ import annotations
 import logging
 import os
 import tempfile
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
 from dependency_injector.wiring import Provide, inject
 from fastapi import APIRouter, Depends, File, HTTPException, Response, UploadFile, status
@@ -51,6 +51,7 @@ from infrastructure.container import AppContainer
 
 if TYPE_CHECKING:
     from domain.models import AppConfig
+    from domain.types import ModelKey
     from ports.input import (
         IModelManagerService,
         IMultilingualTTSService,
@@ -380,7 +381,7 @@ async def load_model(
         )
     try:
         async with inference_semaphore:
-            message = await run_in_threadpool(manager.load, key)
+            message = await run_in_threadpool(manager.load, cast("ModelKey", key))
     except RuntimeError as exc:
         log.exception("Model load failed: %s", key)
         raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(exc))
@@ -414,7 +415,7 @@ async def unload_model(
             detail=f"Unknown model key {key!r}. Valid keys: {sorted(known_keys)}",
         )
     async with inference_semaphore:
-        message = await run_in_threadpool(manager.unload, key)
+        message = await run_in_threadpool(manager.unload, cast("ModelKey", key))
     return MessageResponse(message=message)
 
 

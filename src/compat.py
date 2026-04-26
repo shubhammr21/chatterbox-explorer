@@ -33,6 +33,10 @@ import logging
 
 log = logging.getLogger("chatterbox-demo.compat")
 
+# Module-level flag: set to True once the sdp_kernel shim is installed.
+# Used for idempotency — avoids re-patching on repeated calls.
+_sdp_kernel_patched: bool = False
+
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Migration 1: torch.backends.cuda.sdp_kernel → torch.nn.attention.sdpa_kernel
@@ -67,10 +71,11 @@ def apply_torch_sdp_kernel_migration() -> None:
 
     Idempotency
     ───────────
-    The function checks for a sentinel attribute ``_is_migrated_shim`` and returns
+    The function checks the module-level ``_sdp_kernel_patched`` flag and returns
     immediately if the shim is already in place, making it safe to call multiple
     times or from multiple import paths.
     """
+    global _sdp_kernel_patched
     import torch
 
     # Guard: new API must exist (introduced in PyTorch 2.0)
@@ -87,7 +92,7 @@ def apply_torch_sdp_kernel_migration() -> None:
         return
 
     # Idempotency: already patched
-    if getattr(torch.backends.cuda.sdp_kernel, "_is_migrated_shim", False):
+    if _sdp_kernel_patched:
         log.debug("sdp_kernel migration already applied — skipping")
         return
 
@@ -146,11 +151,11 @@ def apply_torch_sdp_kernel_migration() -> None:
         with sdpa_kernel(backends, set_priority=False):
             yield
 
-    # Mark the shim so idempotency check works
-    _sdp_kernel_shim._is_migrated_shim = True
-
     # Replace the deprecated function
     torch.backends.cuda.sdp_kernel = _sdp_kernel_shim
+
+    # Mark the migration as applied so the idempotency check short-circuits
+    _sdp_kernel_patched = True
 
     log.info(
         "Migration applied: torch.backends.cuda.sdp_kernel "
@@ -226,7 +231,7 @@ def apply_diffusers_lora_migration() -> None:
     original_cls = _diffusers_lora.LoRACompatibleLinear
     original_name = getattr(original_cls, "__name__", str(original_cls))
 
-    _diffusers_lora.LoRACompatibleLinear = nn.Linear
+    setattr(_diffusers_lora, "LoRACompatibleLinear", nn.Linear)
 
     log.info(
         f"Migration applied: diffusers.{original_name} → torch.nn.Linear ✓  "

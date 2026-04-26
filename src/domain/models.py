@@ -102,8 +102,8 @@ class VoiceConversionRequest:
     without any text prompt.
     """
 
-    source_audio_path: str
-    target_voice_path: str
+    source_audio_path: str | None
+    target_voice_path: str | None
 
 
 # ──────────────────────────────────────────────────────────────────────────────

@@ -15,13 +15,14 @@ from typing import TYPE_CHECKING
 import numpy as np
 
 from domain.models import AudioResult
+from ports.input import IVoiceConversionService
 
 if TYPE_CHECKING:
     from domain.models import VoiceConversionRequest
     from ports.output import IAudioPreprocessor, IModelRepository
 
 
-class VoiceConversionService:
+class VoiceConversionService(IVoiceConversionService):
     """Convert source audio to sound like a target voice.
 
     Wraps the ChatterboxVC model behind the IModelRepository port so that

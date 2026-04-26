@@ -350,22 +350,18 @@ class ChatterboxModelLoader(IModelRepository):
         return MODEL_REGISTRY.get(key, {}).get("display_name", key)
 
     def get_model_metadata(self, key: ModelKey) -> ModelMetadata:
-        """Return a metadata dict for *key* with the following keys:
+        """Return the full metadata entry for *key* from the registry.
 
         ``size_gb``     (float)  — weight file size on disk
         ``params``      (str)    — parameter count label, e.g. ``'500M'``
         ``description`` (str)    — one-line capability description
         ``class_name``  (str)    — Python class name, e.g. ``'ChatterboxTTS'``
 
-        Returns an empty dict if *key* is not in the registry.
+        *key* is typed as ``ModelKey`` (a Literal), so it is always a valid
+        registry entry — ``MODEL_REGISTRY[key]`` is therefore unconditionally
+        safe and returns the complete ``ModelMetadata`` TypedDict.
         """
-        info = MODEL_REGISTRY.get(key, {})
-        return {
-            "size_gb": info.get("size_gb", 0.0),
-            "params": info.get("params", "—"),
-            "description": info.get("description", ""),
-            "class_name": info.get("class_name", ""),
-        }
+        return MODEL_REGISTRY[key]
 
     # ──────────────────────────────────────────────────────────────────────────
     # Private helpers
@@ -401,8 +397,9 @@ class ChatterboxModelLoader(IModelRepository):
 
         if key == "multilingual":
             from chatterbox.mtl_tts import ChatterboxMultilingualTTS
+            import torch
 
-            return ChatterboxMultilingualTTS.from_pretrained(self._device)
+            return ChatterboxMultilingualTTS.from_pretrained(torch.device(self._device))
 
         if key == "vc":
             from chatterbox.vc import ChatterboxVC

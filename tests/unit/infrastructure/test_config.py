@@ -21,10 +21,14 @@ Tests verify:
 from __future__ import annotations
 
 import dataclasses
+from typing import TYPE_CHECKING
 
 import pytest
 
 from infrastructure.config import AppSettings
+
+if TYPE_CHECKING:
+    from domain.types import DeviceType
 
 # ──────────────────────────────────────────────────────────────────────────────
 # Construction
@@ -35,7 +39,7 @@ class TestAppSettingsConstruction:
     """AppSettings can be constructed for every valid device string."""
 
     @pytest.mark.parametrize("device", ["cuda", "mps", "cpu"])
-    def test_all_device_strings_accepted(self, device: str) -> None:
+    def test_all_device_strings_accepted(self, device: DeviceType) -> None:
         settings = AppSettings(device=device, watermark_available=True)
         assert settings.device == device
 
@@ -83,17 +87,17 @@ class TestAppSettingsFrozen:
     def test_device_mutation_raises(self) -> None:
         settings = AppSettings(device="cpu", watermark_available=False)
         with pytest.raises(dataclasses.FrozenInstanceError):
-            settings.device = "cuda"  # type: ignore[misc]
+            settings.__setattr__("device", "cuda")
 
     def test_watermark_mutation_raises(self) -> None:
         settings = AppSettings(device="cpu", watermark_available=False)
         with pytest.raises(dataclasses.FrozenInstanceError):
-            settings.watermark_available = True  # type: ignore[misc]
+            settings.__setattr__("watermark_available", True)
 
     def test_attribute_deletion_raises(self) -> None:
         settings = AppSettings(device="cpu", watermark_available=True)
         with pytest.raises((dataclasses.FrozenInstanceError, AttributeError)):
-            del settings.device  # type: ignore[misc]
+            settings.__delattr__("device")
 
 
 # ──────────────────────────────────────────────────────────────────────────────

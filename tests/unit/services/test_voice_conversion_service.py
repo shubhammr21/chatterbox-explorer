@@ -53,7 +53,7 @@ class TestVoiceConversionServiceValidation:
     def test_convert_raises_on_none_source(self, mock_model_repo, mock_preprocessor):
         svc = _make_service(mock_model_repo, mock_preprocessor)
         req = VoiceConversionRequest(
-            source_audio_path=None,  # type: ignore[arg-type]
+            source_audio_path=None,
             target_voice_path="/tmp/target.wav",
         )
         with pytest.raises(ValueError):
@@ -72,7 +72,7 @@ class TestVoiceConversionServiceValidation:
         svc = _make_service(mock_model_repo, mock_preprocessor)
         req = VoiceConversionRequest(
             source_audio_path="/tmp/source.wav",
-            target_voice_path=None,  # type: ignore[arg-type]
+            target_voice_path=None,
         )
         with pytest.raises(ValueError):
             svc.convert(req)

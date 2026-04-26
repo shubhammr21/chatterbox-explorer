@@ -50,8 +50,7 @@ class TestApplyTorchSdpKernelMigration:
         if not hasattr(torch.backends.cuda, "sdp_kernel"):
             pytest.skip("torch.backends.cuda.sdp_kernel absent in this build")
 
-        shim = torch.backends.cuda.sdp_kernel
-        assert getattr(shim, "_is_migrated_shim", False), (
+        assert compat._sdp_kernel_patched is True, (
             "sdp_kernel was not replaced with the migration shim"
         )
 
@@ -165,7 +164,7 @@ class TestApplyTorchSdpKernelMigration:
         )
 
     def test_shim_sentinel_attribute_is_set(self) -> None:
-        """Shim carries _is_migrated_shim=True so idempotency can be detected."""
+        """Module-level _sdp_kernel_patched flag is True after migration."""
         import torch
 
         import compat
@@ -175,7 +174,7 @@ class TestApplyTorchSdpKernelMigration:
         if not hasattr(torch.backends.cuda, "sdp_kernel"):
             pytest.skip("torch.backends.cuda.sdp_kernel absent in this build")
 
-        assert torch.backends.cuda.sdp_kernel._is_migrated_shim is True
+        assert compat._sdp_kernel_patched is True
 
 
 # ─────────────────────────────────────────────────────────────────────────────

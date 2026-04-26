@@ -11,6 +11,11 @@ Python/Pydantic objects exercised in isolation.
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING, cast
+
+if TYPE_CHECKING:
+    from domain.types import ModelKey
+
 import io
 
 import numpy as np
@@ -342,18 +347,25 @@ class TestMultilingualRequestSchema:
 class TestModelStatusResponse:
     """Tests for GET /api/v1/models/status response item schema."""
 
-    def _make_domain_status(self, **overrides) -> ModelStatus:
-        defaults = {
-            "key": "tts",
-            "display_name": "Standard TTS",
-            "class_name": "ChatterboxTTS",
-            "description": "Standard TTS model",
-            "params": "500M",
-            "size_gb": 1.4,
-            "in_memory": True,
-            "on_disk": True,
-        }
-        return ModelStatus(**{**defaults, **overrides})
+    def _make_domain_status(self, **overrides: object) -> ModelStatus:
+        key: ModelKey = cast("ModelKey", overrides.get("key", "tts"))
+        display_name: str = str(overrides.get("display_name", "Standard TTS"))
+        class_name: str = str(overrides.get("class_name", "ChatterboxTTS"))
+        description: str = str(overrides.get("description", "Standard TTS model"))
+        params: str = str(overrides.get("params", "500M"))
+        size_gb: float = float(str(overrides.get("size_gb", 1.4)))
+        in_memory: bool = bool(overrides.get("in_memory", True))
+        on_disk: bool = bool(overrides.get("on_disk", True))
+        return ModelStatus(
+            key=key,
+            display_name=display_name,
+            class_name=class_name,
+            description=description,
+            params=params,
+            size_gb=size_gb,
+            in_memory=in_memory,
+            on_disk=on_disk,
+        )
 
     def test_from_domain_maps_key(self):
         resp = ModelStatusResponse.from_domain(self._make_domain_status(key="turbo"))
@@ -557,11 +569,11 @@ class TestHealthResponse:
 
     def test_missing_status_raises_validation_error(self):
         with pytest.raises(ValidationError):
-            HealthResponse(device="cpu")  # type: ignore[call-arg]
+            HealthResponse.model_validate({"device": "cpu"})  # missing 'status'
 
     def test_missing_device_raises_validation_error(self):
         with pytest.raises(ValidationError):
-            HealthResponse(status="ok")  # type: ignore[call-arg]
+            HealthResponse.model_validate({"status": "ok"})  # missing 'device'
 
 
 # ─────────────────────────────────────────────────────────────────────────────

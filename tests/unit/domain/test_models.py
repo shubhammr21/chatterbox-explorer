@@ -13,8 +13,13 @@ Rules:
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 import numpy as np
 import pytest
+
+if TYPE_CHECKING:
+    from domain.types import WatermarkVerdict
 
 from domain.models import (
     AppConfig,
@@ -391,7 +396,7 @@ class TestWatermarkResult:
             "unavailable",
         ],
     )
-    def test_valid_verdicts(self, verdict: str):
+    def test_valid_verdicts(self, verdict: WatermarkVerdict):
         result = WatermarkResult(
             score=0.9,
             verdict=verdict,

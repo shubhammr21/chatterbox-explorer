@@ -36,7 +36,7 @@ def detect_device() -> DeviceType:
     return "cpu"
 
 
-def set_seed(seed: int) -> None:
+def set_seed(seed: int | float) -> None:
     """Set global random seeds for reproducible generation.
 
     Covers the four RNG states that Chatterbox models touch:

@@ -36,6 +36,7 @@ from __future__ import annotations
 
 import io
 import re
+from typing import TYPE_CHECKING
 from unittest.mock import MagicMock
 
 from fastapi.testclient import TestClient
@@ -49,6 +50,9 @@ from domain.models import (
     ModelStatus,
     WatermarkResult,
 )
+
+if TYPE_CHECKING:
+    from domain.types import WatermarkVerdict
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Module-scoped fixtures  (ONE app + ONE client for the entire module)
@@ -128,7 +132,7 @@ def _fake_wav_bytes() -> bytes:
 
 
 def _fake_watermark_result(
-    verdict: str = "detected",
+    verdict: WatermarkVerdict = "detected",
     score: float = 0.95,
     available: bool = True,
 ) -> WatermarkResult:

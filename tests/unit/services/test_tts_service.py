@@ -11,6 +11,7 @@ mock_wav_tensor fixture) but is NOT imported by the service modules under test.
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING, cast
 from unittest.mock import MagicMock
 
 import pytest
@@ -27,6 +28,9 @@ from services.tts import (
     TurboTTSService,
     split_sentences,
 )
+
+if TYPE_CHECKING:
+    from domain.types import LanguageCode
 
 # ──────────────────────────────────────────────────────────────────────────────
 # split_sentences — pure function, no fixtures needed
@@ -308,7 +312,7 @@ class TestMultilingualTTSService:
     ):
         """Language string 'fr - French' must be trimmed to 'fr' before passing."""
         svc = MultilingualTTSService(mock_model_repo, mock_preprocessor)
-        req = MultilingualTTSRequest(text="Bonjour.", language="fr - French")
+        req = MultilingualTTSRequest(text="Bonjour.", language=cast("LanguageCode", "fr - French"))
         svc.generate(req)
 
         call_kwargs = mock_model.generate.call_args[1]

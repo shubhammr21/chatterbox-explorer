@@ -177,7 +177,19 @@ def build_rest_app(watermark_available: bool) -> FastAPI:
         container: AppContainer
 
     container = AppContainer()
+
+    # ── Load settings into the config tree ─────────────────────────────────
+    # from_pydantic() calls rest_settings.model_dump() and merges the entire
+    # RestSettings tree into the config provider in one call, making every
+    # nested key (config.server.port, config.logging.level, config.environment,
+    # etc.) available to providers that read from the config tree.
+    #
+    # watermark_available and device are NOT in RestSettings — they are
+    # runtime-detected values that cannot be read from environment variables.
+    # They are set separately via from_value() after from_pydantic().
+    container.config.from_pydantic(rest_settings)
     container.config.watermark_available.from_value(watermark_available)
+
     container.wire(modules=[routes_module])
 
     @asynccontextmanager

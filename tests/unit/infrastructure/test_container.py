@@ -8,13 +8,15 @@ What is tested
 1. Module is importable and AppContainer is present at module level.
 2. AppContainer can be instantiated and configured without raising.
 3. Runtime configuration (config.watermark_available) is applied correctly.
-4. Provider overriding works — replacing any provider propagates into every
+4. config.from_pydantic() loads all RestSettings fields into the config tree.
+5. Provider overriding works — replacing any provider propagates into every
    downstream service that depends on it.
-5. Singleton behaviour — repeated calls to the same provider return the same
+6. Singleton behaviour — repeated calls to the same provider return the same
    instance within a single container.
-6. app_config resolution — the AppConfig domain object is built from the
+7. app_config resolution — the AppConfig domain object is built from the
    configured device and watermark_available values.
-7. All expected provider names are present on the container class.
+8. wiring_config is declared on AppContainer with auto_wire=False.
+9. All expected provider names are present on the container class.
 
 What is NOT tested
 ------------------
@@ -122,12 +124,61 @@ class TestAppContainerInstantiation:
 
 
 # ──────────────────────────────────────────────────────────────────────────────
-# 3. Runtime configuration
+# 3. wiring_config declaration
+# ──────────────────────────────────────────────────────────────────────────────
+
+
+class TestAppContainerWiringConfig:
+    """AppContainer must declare wiring_config with auto_wire=False.
+
+    wiring_config documents which modules the container is designed to wire.
+    auto_wire=False preserves the deferred-import guarantee: routes must be
+    imported inside build_rest_app() after compat patches have fired, so
+    automatic wiring at Container() instantiation time would be too early.
+    The explicit container.wire(modules=[routes_module]) call in
+    build_rest_app() does the actual wiring once the module is safely loaded.
+    """
+
+    def test_wiring_config_exists_on_container_class(self) -> None:
+        """AppContainer must have a wiring_config class attribute."""
+        from dependency_injector import containers
+
+        from infrastructure.container import AppContainer
+
+        assert hasattr(AppContainer, "wiring_config"), (
+            "AppContainer must declare wiring_config to document wiring intent"
+        )
+        assert isinstance(AppContainer.wiring_config, containers.WiringConfiguration)
+
+    def test_wiring_config_auto_wire_is_false(self) -> None:
+        """auto_wire must be False — wiring is done manually after deferred import."""
+        from infrastructure.container import AppContainer
+
+        assert AppContainer.wiring_config.auto_wire is False, (
+            "auto_wire must be False to preserve the deferred-import guarantee: "
+            "routes are imported inside build_rest_app() after compat patches fire."
+        )
+
+    def test_wiring_config_includes_rest_routes_module(self) -> None:
+        """wiring_config must reference the REST routes module."""
+        from infrastructure.container import AppContainer
+
+        modules = AppContainer.wiring_config.modules or []
+        module_strings = [
+            m if isinstance(m, str) else getattr(m, "__name__", str(m)) for m in modules
+        ]
+        assert any("routes" in m for m in module_strings), (
+            f"wiring_config.modules must include the REST routes module; got: {module_strings}"
+        )
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# 4. Runtime configuration
 # ──────────────────────────────────────────────────────────────────────────────
 
 
 class TestAppContainerConfiguration:
-    """config.watermark_available must be configurable before provider resolution."""
+    """config must be configurable via both from_value() and from_pydantic()."""
 
     def test_configure_watermark_true_does_not_raise(self) -> None:
         from infrastructure.container import AppContainer
@@ -158,7 +209,95 @@ class TestAppContainerConfiguration:
 
 
 # ──────────────────────────────────────────────────────────────────────────────
-# 4. Provider overriding propagation
+# 5. config.from_pydantic() — RestSettings integration
+# ──────────────────────────────────────────────────────────────────────────────
+
+
+class TestAppContainerFromPydantic:
+    """container.config.from_pydantic(rest_settings) must populate the config tree.
+
+    This is the official dependency-injector pattern for loading pydantic-settings
+    into a Configuration provider.  from_pydantic() calls rest_settings.model_dump()
+    and merges the result recursively into the config tree, making every nested key
+    available as a typed, validated value.
+
+    runtime-detected values (watermark_available, device) are NOT in RestSettings
+    and must still be set via from_value() after from_pydantic().
+    """
+
+    def test_from_pydantic_does_not_raise(self) -> None:
+        """container.config.from_pydantic(RestSettings()) must not raise."""
+        from infrastructure.container import AppContainer
+        from infrastructure.settings import RestSettings
+
+        container = AppContainer()
+        container.config.from_pydantic(RestSettings())  # must not raise
+
+    def test_from_pydantic_populates_server_host(self) -> None:
+        """config.server.host must be accessible after from_pydantic()."""
+        from infrastructure.container import AppContainer
+        from infrastructure.settings import RestSettings
+
+        container = AppContainer()
+        container.config.from_pydantic(RestSettings())
+        assert container.config.server.host() == "0.0.0.0"
+
+    def test_from_pydantic_populates_server_port(self) -> None:
+        """config.server.port must be accessible after from_pydantic()."""
+        from infrastructure.container import AppContainer
+        from infrastructure.settings import RestSettings
+
+        container = AppContainer()
+        container.config.from_pydantic(RestSettings())
+        assert container.config.server.port() == 7860
+
+    def test_from_pydantic_populates_logging_level(self) -> None:
+        """config.logging.level must be accessible after from_pydantic()."""
+        from infrastructure.container import AppContainer
+        from infrastructure.settings import RestSettings
+
+        container = AppContainer()
+        container.config.from_pydantic(RestSettings())
+        assert container.config.logging.level() == "INFO"
+
+    def test_from_pydantic_populates_environment(self) -> None:
+        """config.environment must be accessible after from_pydantic()."""
+        from infrastructure.constants import Environment
+        from infrastructure.container import AppContainer
+        from infrastructure.settings import RestSettings
+
+        container = AppContainer()
+        container.config.from_pydantic(RestSettings())
+        assert container.config.environment() == Environment.LOCAL
+
+    def test_from_pydantic_then_from_value_override(self) -> None:
+        """from_value() called after from_pydantic() must win for that key.
+
+        This is the pattern used in build_rest_app(): load all settings from
+        pydantic first, then set runtime-detected values (watermark_available)
+        via from_value().  The last write to any config key wins.
+        """
+        from infrastructure.container import AppContainer
+        from infrastructure.settings import RestSettings
+
+        container = AppContainer()
+        container.config.from_pydantic(RestSettings())
+        container.config.watermark_available.from_value(True)
+        assert container.config.watermark_available() is True
+
+    def test_from_pydantic_with_env_override(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """RestSettings reads env vars; from_pydantic() passes validated values."""
+        monkeypatch.setenv("SERVER__PORT", "9090")
+        from infrastructure.container import AppContainer
+        from infrastructure.settings import RestSettings
+
+        container = AppContainer()
+        container.config.from_pydantic(RestSettings())
+        assert container.config.server.port() == 9090
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# 6. Provider overriding propagation
 # ──────────────────────────────────────────────────────────────────────────────
 
 
@@ -243,7 +382,7 @@ class TestAppContainerProviderOverriding:
 
 
 # ──────────────────────────────────────────────────────────────────────────────
-# 5. Singleton behaviour
+# 7. Singleton behaviour
 # ──────────────────────────────────────────────────────────────────────────────
 
 
@@ -284,7 +423,7 @@ class TestAppContainerSingletonBehaviour:
 
 
 # ──────────────────────────────────────────────────────────────────────────────
-# 6. app_config resolution
+# 8. app_config resolution
 # ──────────────────────────────────────────────────────────────────────────────
 
 
@@ -330,7 +469,7 @@ class TestAppContainerAppConfig:
 
 
 # ──────────────────────────────────────────────────────────────────────────────
-# 7. Provider structure
+# 9. Provider structure
 # ──────────────────────────────────────────────────────────────────────────────
 
 

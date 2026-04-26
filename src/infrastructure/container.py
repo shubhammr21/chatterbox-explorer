@@ -87,7 +87,25 @@ class AppContainer(containers.DeclarativeContainer):
         4. Domain services          — each receives only the port ABCs it needs
         5. ``app_config``           — immutable AppConfig domain value-object
 
-    Typical usage inside build_app()::
+    Wiring configuration
+    --------------------
+    ``wiring_config`` declares the modules that must be wired so that
+    ``@inject`` + ``Depends(Provide[AppContainer.*])`` resolve correctly in
+    route handlers.  ``auto_wire=False`` suppresses automatic wiring at
+    ``Container()`` instantiation time because ``adapters.inbound.rest.routes``
+    is a deferred import — it must be imported inside ``build_rest_app()``
+    *after* the compat patches in ``cli.main()`` have fired.  The explicit
+    ``container.wire(modules=[routes_module])`` call in ``build_rest_app()``
+    does the actual wiring once the module is safely imported.
+
+    Typical usage inside build_rest_app()::
+
+        container = AppContainer()
+        container.config.from_pydantic(rest_settings)
+        container.config.watermark_available.from_value(watermark_available)
+        container.wire(modules=[routes_module])  # deferred — after compat patches
+
+    Typical usage inside build_app() (Gradio UI mode)::
 
         container = AppContainer()
         container.config.watermark_available.from_value(watermark_available)
@@ -103,11 +121,26 @@ class AppContainer(containers.DeclarativeContainer):
         )
     """
 
+    # ── Wiring declaration ─────────────────────────────────────────────────
+    # Documents which modules this container is designed to wire.
+    # auto_wire=False: wiring is triggered manually inside build_rest_app()
+    # after the deferred import of routes_module — never at Container()
+    # instantiation time.  This preserves the compat-patch ordering guarantee.
+    wiring_config = containers.WiringConfiguration(
+        modules=["adapters.inbound.rest.routes"],
+        auto_wire=False,
+    )
+
     # ── Runtime configuration ──────────────────────────────────────────────
-    # Must be populated before any provider that depends on it is resolved.
-    # Accessing config.watermark_available before calling
-    # container.config.watermark_available.from_value(...) raises a
-    # dependency_injector error — correct fail-fast behaviour.
+    # For the REST adapter, populated via:
+    #   container.config.from_pydantic(rest_settings)   — all RestSettings fields
+    #   container.config.watermark_available.from_value(...)  — runtime-detected
+    #   container.config.device is NOT used here; device is a Singleton provider
+    #
+    # For the Gradio adapter (build_app), only watermark_available is set.
+    #
+    # Accessing a config key before it is populated raises a dependency_injector
+    # error — correct fail-fast behaviour.
     config = providers.Configuration()
 
     # ── Compute device ─────────────────────────────────────────────────────

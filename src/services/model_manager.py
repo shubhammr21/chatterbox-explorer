@@ -7,13 +7,14 @@ Architecture rules enforced here:
     - ZERO imports from torch, gradio, chatterbox, psutil, huggingface_hub
     - All infrastructure access is mediated through IModelRepository / IMemoryMonitor
     - Returns human-readable strings (not framework-specific errors/warnings)
-    - Raises RuntimeError for infrastructure failures
+    - Raises ModelLoadError for infrastructure failures
 """
 
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from domain.exceptions import ModelLoadError
 from domain.models import ModelStatus
 from ports.input import IModelManagerService
 
@@ -63,7 +64,7 @@ class ModelManagerService(IModelManagerService):
             A human-readable status string describing the outcome.
 
         Raises:
-            RuntimeError: if the repository raises while loading the model.
+            ModelLoadError: if the repository raises while loading the model.
         """
         display = self._repo.get_display_name(key)
 
@@ -72,11 +73,8 @@ class ModelManagerService(IModelManagerService):
 
         try:
             self._repo.get_model(key)
-        except RuntimeError:
-            # Re-raise repo RuntimeErrors as-is so callers can handle them.
-            raise
-        except Exception as exc:
-            raise RuntimeError(f"Failed to load model '{key}' ({display}): {exc}") from exc
+        except RuntimeError as exc:
+            raise ModelLoadError(model_key=key, message=str(exc)) from exc
 
         return f"{display} loaded successfully."
 

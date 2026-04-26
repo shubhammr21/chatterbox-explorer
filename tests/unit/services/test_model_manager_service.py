@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import pytest
 
+from domain.exceptions import ModelLoadError
 from domain.models import MemoryStats, ModelStatus
 from services.model_manager import ModelManagerService
 
@@ -67,37 +68,34 @@ class TestModelManagerLoad:
         assert "TURBO" in result
 
     def test_load_raises_runtime_error_on_repo_failure(self, mock_model_repo, mock_memory_monitor):
-        """If get_model raises, load() must re-raise as RuntimeError."""
+        """If get_model raises RuntimeError, load() must re-raise as ModelLoadError."""
         mock_model_repo.is_loaded.return_value = False
         mock_model_repo.get_model.side_effect = RuntimeError("weights missing")
 
         svc = ModelManagerService(mock_model_repo, mock_memory_monitor)
-        with pytest.raises(RuntimeError):
+        with pytest.raises(ModelLoadError):
             svc.load("tts")
 
     def test_load_reraises_runtime_error_from_repo(self, mock_model_repo, mock_memory_monitor):
-        """A RuntimeError raised by repo.get_model must be re-raised as-is,
-        preserving the original message (not wrapped in a new RuntimeError)."""
+        """A RuntimeError raised by repo.get_model must be wrapped into ModelLoadError
+        with the original message preserved in the new exception's text."""
         mock_model_repo.is_loaded.return_value = False
         mock_model_repo.get_model.side_effect = RuntimeError("OOM")
 
         svc = ModelManagerService(mock_model_repo, mock_memory_monitor)
-        with pytest.raises(RuntimeError, match="OOM"):
+        with pytest.raises(ModelLoadError, match="OOM"):
             svc.load("tts")
 
-    def test_load_wraps_value_error_in_runtime_error(self, mock_model_repo, mock_memory_monitor):
-        """A non-RuntimeError exception from repo.get_model must be caught and
-        re-raised as RuntimeError with the original error set as __cause__."""
+    def test_load_propagates_non_runtime_errors(self, mock_model_repo, mock_memory_monitor):
+        """A non-RuntimeError exception from repo.get_model propagates as-is,
+        since the service only catches RuntimeError (to wrap as ModelLoadError)."""
         mock_model_repo.is_loaded.return_value = False
         original_error = ValueError("bad config")
         mock_model_repo.get_model.side_effect = original_error
 
         svc = ModelManagerService(mock_model_repo, mock_memory_monitor)
-        with pytest.raises(RuntimeError) as exc_info:
+        with pytest.raises(ValueError, match="bad config"):
             svc.load("tts")
-
-        assert isinstance(exc_info.value.__cause__, ValueError)
-        assert "bad config" in str(exc_info.value.__cause__)
 
 
 # ──────────────────────────────────────────────────────────────────────────────

@@ -8,9 +8,10 @@ Architecture contract:
     secondary adapters directly (except importing to_gradio_audio(), a pure
     format-conversion utility with no infrastructure concerns).
   - Exception translation policy:
-        ValueError     → gr.Warning(str(e)) + return  (user-facing input error)
-        AssertionError → gr.Error("Reference audio must be > 5 seconds")
-        Exception      → gr.Error(str(e))              (unexpected runtime failure)
+          TTSInputError          → gr.Warning(str(e)) + return  (empty text / ref too short)
+          VoiceConversionInputError → gr.Warning(str(e)) + return  (missing source/target)
+          ModelError             → gr.Error(str(e))              (model lifecycle failure)
+          Exception              → gr.Error(str(e))              (unexpected runtime failure)
   - render_manager_html() reads memory and model state exclusively through
     self._manager.get_all_status() and self._manager.get_memory_stats() — never
     via secondary adapters, psutil, or torch directly.
@@ -29,6 +30,7 @@ from typing import TYPE_CHECKING, cast
 import gradio as gr
 
 from adapters.outbound.audio import to_gradio_audio
+from domain.exceptions import ModelError, TTSInputError, VoiceConversionInputError
 from domain.languages import (
     LANGUAGE_AUDIO_DEFAULTS,
     SAMPLE_TEXTS,
@@ -136,11 +138,11 @@ class GradioHandlers:
             else:
                 result = self._tts.generate(request)
                 yield to_gradio_audio(result)
-        except ValueError as e:
+        except TTSInputError as e:
             gr.Warning(str(e))
             return
-        except AssertionError:
-            raise gr.Error("Reference audio must be > 5 seconds")
+        except ModelError as e:
+            raise gr.Error(str(e))
         except Exception as e:
             raise gr.Error(str(e))
 
@@ -182,11 +184,11 @@ class GradioHandlers:
             else:
                 result = self._turbo.generate(request)
                 yield to_gradio_audio(result)
-        except ValueError as e:
+        except TTSInputError as e:
             gr.Warning(str(e))
             return
-        except AssertionError:
-            raise gr.Error("Reference audio must be > 5 seconds")
+        except ModelError as e:
+            raise gr.Error(str(e))
         except Exception as e:
             raise gr.Error(str(e))
 
@@ -231,11 +233,11 @@ class GradioHandlers:
             else:
                 result = self._mtl.generate(request)
                 yield to_gradio_audio(result)
-        except ValueError as e:
+        except TTSInputError as e:
             gr.Warning(str(e))
             return
-        except AssertionError:
-            raise gr.Error("Reference audio must be > 5 seconds")
+        except ModelError as e:
+            raise gr.Error(str(e))
         except Exception as e:
             raise gr.Error(str(e))
 
@@ -252,7 +254,7 @@ class GradioHandlers:
             )
             result = self._vc.convert(request)
             return to_gradio_audio(result)
-        except ValueError as e:
+        except VoiceConversionInputError as e:
             gr.Warning(str(e))
             return None
         except Exception as e:

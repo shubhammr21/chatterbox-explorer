@@ -43,6 +43,7 @@ from fastapi.testclient import TestClient
 import numpy as np
 import pytest
 
+from domain.exceptions import EmptyTextError, ModelLoadError
 from domain.models import (
     AppConfig,
     AudioResult,
@@ -230,14 +231,14 @@ class TestTTSGenerateEndpoint:
 
     def test_service_value_error_returns_422(self, rest_client, rest_app):
         mock_tts = MagicMock()
-        mock_tts.generate.side_effect = ValueError("empty text")
+        mock_tts.generate.side_effect = EmptyTextError("empty text")
         with rest_app.container.tts_service.override(mock_tts):
             resp = rest_client.post("/api/v1/tts/generate", json={"text": "Hello"})
         assert resp.status_code == 422
 
     def test_service_runtime_error_returns_503(self, rest_client, rest_app):
         mock_tts = MagicMock()
-        mock_tts.generate.side_effect = RuntimeError("OOM")
+        mock_tts.generate.side_effect = ModelLoadError(model_key="tts", message="OOM")
         with rest_app.container.tts_service.override(mock_tts):
             resp = rest_client.post("/api/v1/tts/generate", json={"text": "Hello"})
         assert resp.status_code == 503
@@ -292,14 +293,14 @@ class TestTurboGenerateEndpoint:
 
     def test_service_value_error_returns_422(self, rest_client, rest_app):
         mock_turbo = MagicMock()
-        mock_turbo.generate.side_effect = ValueError("bad reference audio")
+        mock_turbo.generate.side_effect = EmptyTextError("bad reference audio")
         with rest_app.container.turbo_service.override(mock_turbo):
             resp = rest_client.post("/api/v1/turbo/generate", json={"text": "Hello"})
         assert resp.status_code == 422
 
     def test_service_runtime_error_returns_503(self, rest_client, rest_app):
         mock_turbo = MagicMock()
-        mock_turbo.generate.side_effect = RuntimeError("OOM")
+        mock_turbo.generate.side_effect = ModelLoadError(model_key="tts", message="OOM")
         with rest_app.container.turbo_service.override(mock_turbo):
             resp = rest_client.post("/api/v1/turbo/generate", json={"text": "Hello"})
         assert resp.status_code == 503
@@ -363,7 +364,7 @@ class TestMultilingualGenerateEndpoint:
 
     def test_service_value_error_returns_422(self, rest_client, rest_app):
         mock_mtl = MagicMock()
-        mock_mtl.generate.side_effect = ValueError("bad input")
+        mock_mtl.generate.side_effect = EmptyTextError("bad input")
         with rest_app.container.multilingual_service.override(mock_mtl):
             resp = rest_client.post(
                 "/api/v1/multilingual/generate",
@@ -373,7 +374,7 @@ class TestMultilingualGenerateEndpoint:
 
     def test_service_runtime_error_returns_503(self, rest_client, rest_app):
         mock_mtl = MagicMock()
-        mock_mtl.generate.side_effect = RuntimeError("device OOM")
+        mock_mtl.generate.side_effect = ModelLoadError(model_key="tts", message="device OOM")
         with rest_app.container.multilingual_service.override(mock_mtl):
             resp = rest_client.post(
                 "/api/v1/multilingual/generate",
@@ -549,7 +550,9 @@ class TestModelLoadEndpoint:
     def test_service_runtime_error_returns_503(self, rest_client, rest_app):
         mock_manager = MagicMock()
         mock_manager.get_all_status.return_value = _fake_model_statuses()
-        mock_manager.load.side_effect = RuntimeError("OOM during model load")
+        mock_manager.load.side_effect = ModelLoadError(
+            model_key="tts", message="OOM during model load"
+        )
         with rest_app.container.model_manager_service.override(mock_manager):
             resp = rest_client.post("/api/v1/models/tts/load")
         assert resp.status_code == 503

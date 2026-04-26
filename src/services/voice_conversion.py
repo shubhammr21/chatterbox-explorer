@@ -14,6 +14,7 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 
+from domain.exceptions import MissingSourceAudioError, MissingTargetVoiceError
 from domain.models import AudioResult
 from ports.input import IVoiceConversionService
 
@@ -59,7 +60,10 @@ class VoiceConversionService(IVoiceConversionService):
             native sample rate.
 
         Raises:
-            ValueError: if either audio path is ``None`` or empty.
+            MissingSourceAudioError: if ``request.source_audio_path`` is
+                ``None`` or empty.
+            MissingTargetVoiceError: if ``request.target_voice_path`` is
+                ``None`` or empty.
             RuntimeError: if the model or infrastructure layer fails.
         """
         self._validate(request)
@@ -81,8 +85,8 @@ class VoiceConversionService(IVoiceConversionService):
 
     @staticmethod
     def _validate(request: VoiceConversionRequest) -> None:
-        """Raise ValueError for any missing/empty path."""
+        """Raise typed domain errors for any missing or empty audio path."""
         if not request.source_audio_path:
-            raise ValueError("source_audio_path is required for voice conversion.")
+            raise MissingSourceAudioError()
         if not request.target_voice_path:
-            raise ValueError("target_voice_path is required for voice conversion.")
+            raise MissingTargetVoiceError()

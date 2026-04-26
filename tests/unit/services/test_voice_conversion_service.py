@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import pytest
 
+from domain.exceptions import MissingSourceAudioError, MissingTargetVoiceError
 from domain.models import AudioResult, VoiceConversionRequest
 from services.voice_conversion import VoiceConversionService
 
@@ -47,7 +48,7 @@ class TestVoiceConversionServiceValidation:
             source_audio_path="",
             target_voice_path="/tmp/target.wav",
         )
-        with pytest.raises(ValueError):
+        with pytest.raises(MissingSourceAudioError):
             svc.convert(req)
 
     def test_convert_raises_on_none_source(self, mock_model_repo, mock_preprocessor):
@@ -56,7 +57,7 @@ class TestVoiceConversionServiceValidation:
             source_audio_path=None,
             target_voice_path="/tmp/target.wav",
         )
-        with pytest.raises(ValueError):
+        with pytest.raises(MissingSourceAudioError):
             svc.convert(req)
 
     def test_convert_raises_on_empty_target(self, mock_model_repo, mock_preprocessor):
@@ -65,7 +66,7 @@ class TestVoiceConversionServiceValidation:
             source_audio_path="/tmp/source.wav",
             target_voice_path="",
         )
-        with pytest.raises(ValueError):
+        with pytest.raises(MissingTargetVoiceError):
             svc.convert(req)
 
     def test_convert_raises_on_none_target(self, mock_model_repo, mock_preprocessor):
@@ -74,7 +75,7 @@ class TestVoiceConversionServiceValidation:
             source_audio_path="/tmp/source.wav",
             target_voice_path=None,
         )
-        with pytest.raises(ValueError):
+        with pytest.raises(MissingTargetVoiceError):
             svc.convert(req)
 
     def test_convert_raises_on_both_empty(self, mock_model_repo, mock_preprocessor):
@@ -83,7 +84,8 @@ class TestVoiceConversionServiceValidation:
             source_audio_path="",
             target_voice_path="",
         )
-        with pytest.raises(ValueError):
+        # source is validated first, so MissingSourceAudioError is raised
+        with pytest.raises(MissingSourceAudioError):
             svc.convert(req)
 
 

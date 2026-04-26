@@ -16,6 +16,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
+from domain.exceptions import EmptyTextError, ReferenceTooShortError
 from domain.models import (
     AudioResult,
     MultilingualTTSRequest,
@@ -80,13 +81,13 @@ class TestTTSService:
     def test_generate_raises_on_empty_text(self, mock_model_repo, mock_preprocessor):
         svc = TTSService(mock_model_repo, mock_preprocessor)
         req = TTSRequest(text="")
-        with pytest.raises(ValueError, match="empty"):
+        with pytest.raises(EmptyTextError):
             svc.generate(req)
 
     def test_generate_raises_on_whitespace_text(self, mock_model_repo, mock_preprocessor):
         svc = TTSService(mock_model_repo, mock_preprocessor)
         req = TTSRequest(text="   ")
-        with pytest.raises(ValueError):
+        with pytest.raises(EmptyTextError):
             svc.generate(req)
 
     def test_generate_calls_preprocessor_with_ref_path(self, mock_model_repo, mock_preprocessor):
@@ -171,7 +172,7 @@ class TestTTSService:
     def test_generate_stream_raises_on_empty_text(self, mock_model_repo, mock_preprocessor):
         svc = TTSService(mock_model_repo, mock_preprocessor)
         req = TTSRequest(text="")
-        with pytest.raises(ValueError, match="empty"):
+        with pytest.raises(EmptyTextError):
             # consume the generator to trigger the error
             list(svc.generate_stream(req))
 
@@ -211,7 +212,7 @@ class TestTurboTTSService:
     def test_turbo_generate_raises_on_empty_text(self, mock_model_repo, mock_preprocessor):
         svc = TurboTTSService(mock_model_repo, mock_preprocessor)
         req = TurboTTSRequest(text="")
-        with pytest.raises(ValueError):
+        with pytest.raises(EmptyTextError):
             svc.generate(req)
 
     def test_turbo_generate_calls_model_with_turbo_kwargs(
@@ -243,14 +244,14 @@ class TestTurboTTSService:
         svc.generate(req)
         mock_model_repo.get_model.assert_called_with("turbo")
 
-    def test_turbo_assertion_error_becomes_value_error(
+    def test_turbo_assertion_error_becomes_reference_too_short_error(
         self, mock_model_repo, mock_preprocessor, mock_model
     ):
-        """AssertionError from the 5-second ref-audio check must become ValueError."""
+        """AssertionError from the 5-second ref-audio check must become ReferenceTooShortError."""
         mock_model.generate.side_effect = AssertionError("audio shorter than 5 s")
         svc = TurboTTSService(mock_model_repo, mock_preprocessor)
         req = TurboTTSRequest(text="Hello.")
-        with pytest.raises(ValueError, match="5 seconds"):
+        with pytest.raises(ReferenceTooShortError):
             svc.generate(req)
 
     def test_turbo_generate_returns_audio_result(self, mock_model_repo, mock_preprocessor):
@@ -270,28 +271,28 @@ class TestTurboTTSService:
     def test_turbo_stream_raises_on_empty_text(self, mock_model_repo, mock_preprocessor):
         svc = TurboTTSService(mock_model_repo, mock_preprocessor)
         req = TurboTTSRequest(text="")
-        with pytest.raises(ValueError):
+        with pytest.raises(EmptyTextError):
             list(svc.generate_stream(req))
 
-    def test_turbo_stream_assertion_error_becomes_value_error(
+    def test_turbo_stream_assertion_error_becomes_reference_too_short_error(
         self, mock_model_repo, mock_preprocessor, mock_model
     ):
         mock_model.generate.side_effect = AssertionError("ref too short")
         svc = TurboTTSService(mock_model_repo, mock_preprocessor)
         req = TurboTTSRequest(text="Hello.")
-        with pytest.raises(ValueError, match="5 seconds"):
+        with pytest.raises(ReferenceTooShortError):
             list(svc.generate_stream(req))
 
-    def test_turbo_stream_converts_assertion_error_to_value_error(
+    def test_turbo_stream_converts_assertion_error_to_reference_too_short_error(
         self, mock_model_repo, mock_preprocessor, mock_model
     ):
         """AssertionError raised on the first iteration of generate_stream must
-        be surfaced as ValueError when the caller drives the generator with
-        next() — covers lines 267-268 of the stream exception handler."""
+        be surfaced as ReferenceTooShortError when the caller drives the generator
+        with next() — covers the stream exception handler."""
         mock_model.generate.side_effect = AssertionError("audio must be > 5 seconds")
         svc = TurboTTSService(mock_model_repo, mock_preprocessor)
         req = TurboTTSRequest(text="Hello.")
-        with pytest.raises(ValueError, match="5 seconds"):
+        with pytest.raises(ReferenceTooShortError):
             next(svc.generate_stream(req))
 
 
@@ -304,7 +305,7 @@ class TestMultilingualTTSService:
     def test_multilingual_generate_raises_on_empty_text(self, mock_model_repo, mock_preprocessor):
         svc = MultilingualTTSService(mock_model_repo, mock_preprocessor)
         req = MultilingualTTSRequest(text="")
-        with pytest.raises(ValueError):
+        with pytest.raises(EmptyTextError):
             svc.generate(req)
 
     def test_multilingual_generate_passes_language_id(
@@ -384,7 +385,7 @@ class TestMultilingualTTSService:
     ):
         svc = MultilingualTTSService(mock_model_repo, mock_preprocessor)
         req = MultilingualTTSRequest(text="")
-        with pytest.raises(ValueError):
+        with pytest.raises(EmptyTextError):
             list(svc.generate_stream(req))
 
     def test_multilingual_generate_calls_seed_setter(self, mock_model_repo, mock_preprocessor):

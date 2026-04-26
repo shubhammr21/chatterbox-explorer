@@ -213,25 +213,38 @@ def build_rest_app(watermark_available: bool) -> FastAPI:
     # handlers are defined in a separate module.
     #
     # Starlette resolves handlers by MRO — most-specific type wins.
+    # Register more-specific domain types BEFORE the ChatterboxError catch-all.
     # Register against StarletteHTTPException (not fastapi.HTTPException) so
     # that exceptions raised by Starlette internals are also caught.
     #
-    # ValueError  → 422: domain input error (not logged — caller's fault)
-    # RuntimeError → 503: infrastructure failure (logged at ERROR)
+    # TTSInputError             → 422: TTS input error (not logged — caller's fault)
+    # VoiceConversionInputError → 422: VC input error (not logged — caller's fault)
+    # ModelError                → 503: infrastructure failure (logged at ERROR)
+    # ChatterboxError           → 500: unexpected domain error (logged at ERROR)
     # StarletteHTTPException: delegate to FastAPI default + log ≥500 at ERROR
     # RequestValidationError: delegate to FastAPI default + log at DEBUG
     from fastapi.exceptions import RequestValidationError
     from starlette.exceptions import HTTPException as StarletteHTTPException
 
     from adapters.inbound.rest.exception_handlers import (
+        chatterbox_error_handler,
         http_exception_handler_with_logging,
-        runtime_error_handler,
+        model_error_handler,
+        tts_input_error_handler,
         validation_exception_handler_with_logging,
-        value_error_handler,
+        vc_input_error_handler,
+    )
+    from domain.exceptions import (
+        ChatterboxError,
+        ModelError,
+        TTSInputError,
+        VoiceConversionInputError,
     )
 
-    app.add_exception_handler(ValueError, value_error_handler)
-    app.add_exception_handler(RuntimeError, runtime_error_handler)
+    app.add_exception_handler(TTSInputError, tts_input_error_handler)
+    app.add_exception_handler(VoiceConversionInputError, vc_input_error_handler)
+    app.add_exception_handler(ModelError, model_error_handler)
+    app.add_exception_handler(ChatterboxError, chatterbox_error_handler)
     app.add_exception_handler(StarletteHTTPException, http_exception_handler_with_logging)
     app.add_exception_handler(RequestValidationError, validation_exception_handler_with_logging)
 

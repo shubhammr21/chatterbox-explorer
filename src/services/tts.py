@@ -5,8 +5,8 @@ Domain services for text-to-speech generation.
 
 Architecture rules enforced here:
   - ZERO imports from torch, gradio, or chatterbox packages
-  - ValueError   → caller-visible input errors (empty text, bad ref audio)
-  - RuntimeError → infrastructure failures surfaced from the model layer
+  - EmptyTextError         → text is empty or whitespace-only
+  - ReferenceTooShortError → reference audio too short (Turbo model constraint)
   - seed_setter is injected as a plain callable — no torch.manual_seed here
 
 Services:
@@ -22,6 +22,7 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 
+from domain.exceptions import EmptyTextError, ReferenceTooShortError
 from domain.models import AudioResult
 from ports.input import IMultilingualTTSService, ITTSService, ITurboTTSService
 
@@ -105,11 +106,11 @@ class TTSService(ITTSService):
         """Generate a complete audio clip from *request* in one shot.
 
         Raises:
-            ValueError: if ``request.text`` is empty or whitespace-only.
+            EmptyTextError: if ``request.text`` is empty or whitespace-only.
             RuntimeError: if the model layer raises for any infrastructure reason.
         """
         if not request.text.strip():
-            raise ValueError("Text input is empty.")
+            raise EmptyTextError(text=request.text)
 
         self._set_seed(request.seed)
         model = self._repo.get_model("tts")
@@ -138,10 +139,10 @@ class TTSService(ITTSService):
         differential).
 
         Raises:
-            ValueError: if ``request.text`` is empty or whitespace-only.
+            EmptyTextError: if ``request.text`` is empty or whitespace-only.
         """
         if not request.text.strip():
-            raise ValueError("Text input is empty.")
+            raise EmptyTextError(text=request.text)
 
         self._set_seed(request.seed)
         model = self._repo.get_model("tts")
@@ -183,8 +184,9 @@ class TurboTTSService(ITurboTTSService):
     * Accepts ``top_k`` and ``norm_loudness`` instead of ``exaggeration`` /
       ``cfg_weight``.
     * Catches ``AssertionError`` raised by the model when the reference audio
-      clip is shorter than 5 seconds and re-raises it as ``ValueError`` so
-      callers receive a clean, framework-agnostic error.
+      clip is shorter than 5 seconds and re-raises it as
+      :exc:`ReferenceTooShortError` so callers receive a clean,
+      framework-agnostic typed domain error.
     """
 
     def __init__(
@@ -203,12 +205,13 @@ class TurboTTSService(ITurboTTSService):
         """Generate a complete audio clip from *request* in one shot.
 
         Raises:
-            ValueError: if ``request.text`` is empty, or if the reference
-                        audio is shorter than 5 seconds (model assertion).
+            EmptyTextError: if ``request.text`` is empty or whitespace-only.
+            ReferenceTooShortError: if the reference audio is shorter than
+                                    5 seconds (model assertion).
             RuntimeError: if the model layer raises for any infrastructure reason.
         """
         if not request.text.strip():
-            raise ValueError("Text input is empty.")
+            raise EmptyTextError(text=request.text)
 
         self._set_seed(request.seed)
         model = self._repo.get_model("turbo")
@@ -226,7 +229,7 @@ class TurboTTSService(ITurboTTSService):
                 norm_loudness=request.norm_loudness,
             )
         except AssertionError as exc:
-            raise ValueError(f"Reference audio must be longer than 5 seconds: {exc}") from exc
+            raise ReferenceTooShortError(minimum_sec=5.0) from exc
 
         return AudioResult(
             sample_rate=model.sr,
@@ -237,11 +240,12 @@ class TurboTTSService(ITurboTTSService):
         """Generate audio sentence-by-sentence, yielding cumulative results.
 
         Raises:
-            ValueError: if ``request.text`` is empty, or if the reference
-                        audio is shorter than 5 seconds.
+            EmptyTextError: if ``request.text`` is empty or whitespace-only.
+            ReferenceTooShortError: if the reference audio is shorter than
+                                    5 seconds.
         """
         if not request.text.strip():
-            raise ValueError("Text input is empty.")
+            raise EmptyTextError(text=request.text)
 
         self._set_seed(request.seed)
         model = self._repo.get_model("turbo")
@@ -264,7 +268,7 @@ class TurboTTSService(ITurboTTSService):
             try:
                 wav = model.generate(sentence, **gen_kwargs)
             except AssertionError as exc:
-                raise ValueError(f"Reference audio must be longer than 5 seconds: {exc}") from exc
+                raise ReferenceTooShortError(minimum_sec=5.0) from exc
             buf.append(_tensor_to_numpy(wav))
             yield AudioResult(
                 sample_rate=model.sr,
@@ -316,11 +320,11 @@ class MultilingualTTSService(IMultilingualTTSService):
         """Generate a complete audio clip from *request* in one shot.
 
         Raises:
-            ValueError: if ``request.text`` is empty or whitespace-only.
+            EmptyTextError: if ``request.text`` is empty or whitespace-only.
             RuntimeError: if the model layer raises for any infrastructure reason.
         """
         if not request.text.strip():
-            raise ValueError("Text input is empty.")
+            raise EmptyTextError(text=request.text)
 
         self._set_seed(request.seed)
         model = self._repo.get_model("multilingual")
@@ -347,10 +351,10 @@ class MultilingualTTSService(IMultilingualTTSService):
         """Generate audio sentence-by-sentence, yielding cumulative results.
 
         Raises:
-            ValueError: if ``request.text`` is empty or whitespace-only.
+            EmptyTextError: if ``request.text`` is empty or whitespace-only.
         """
         if not request.text.strip():
-            raise ValueError("Text input is empty.")
+            raise EmptyTextError(text=request.text)
 
         self._set_seed(request.seed)
         model = self._repo.get_model("multilingual")

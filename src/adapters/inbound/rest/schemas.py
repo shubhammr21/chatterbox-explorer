@@ -30,7 +30,7 @@ Allowed imports
 from __future__ import annotations
 
 import abc
-from typing import TYPE_CHECKING, Generic, Self, TypeVar, cast
+from typing import TYPE_CHECKING, Self, cast
 
 from pydantic import BaseModel, Field
 
@@ -50,18 +50,11 @@ if TYPE_CHECKING:
     from domain.types import LanguageCode
 
 # ──────────────────────────────────────────────────────────────────────────────
-# Generic type variable shared by both base classes
-# ──────────────────────────────────────────────────────────────────────────────
-
-DomainT = TypeVar("DomainT")
-
-
-# ──────────────────────────────────────────────────────────────────────────────
-# Abstract base classes
+# Abstract base classes  (PEP 695 type-parameter syntax — Python 3.12+)
 # ──────────────────────────────────────────────────────────────────────────────
 
 
-class InboundSchema(BaseModel, abc.ABC, Generic[DomainT]):
+class InboundSchema[DomainT](BaseModel, abc.ABC):
     """Base for schemas that translate HTTP input → domain objects.
 
     Subclasses must implement ``to_domain()`` returning the parametrised
@@ -82,7 +75,7 @@ class InboundSchema(BaseModel, abc.ABC, Generic[DomainT]):
         ...
 
 
-class OutboundSchema(BaseModel, abc.ABC, Generic[DomainT]):
+class OutboundSchema[DomainT](BaseModel, abc.ABC):
     """Base for schemas that translate domain objects → HTTP response payloads.
 
     Subclasses must implement ``from_domain()`` as a classmethod.

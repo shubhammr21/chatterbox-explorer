@@ -3,7 +3,7 @@ name = "chatterbox-explorer"
 version = "0.1.0"
 description = "Chatterbox TTS Explorer — Interactive Gradio demo for all Chatterbox capabilities"
 readme = "README.md"
-requires-python = ">=3.11"
+requires-python = ">=3.13"
 dependencies = [
     "chatterbox-tts",
     "dependency-injector>=4.41.0",
@@ -106,7 +106,7 @@ markers = [
 # F      — pyflakes: undefined names, unused imports — catches real bugs
 # B      — flake8-bugbear: likely bugs and design issues (e.g. mutable defaults)
 # I      — isort: consistent import ordering across the hexagonal layers
-# UP     — pyupgrade: enforce modern Python 3.11 idioms (e.g. X | Y over Union[X,Y])
+# UP     — pyupgrade: enforce modern Python 3.13 idioms (e.g. X | Y over Union[X,Y])
 # SIM    — flake8-simplify: reduce unnecessary complexity in service logic
 # RUF    — ruff-native rules: catches Python-specific footguns
 # N      — pep8-naming: enforce naming conventions (important for port/service clarity)
@@ -123,7 +123,7 @@ markers = [
 # ──────────────────────────────────────────────────────────────────────────────
 
 [tool.ruff]
-target-version = "py311"
+target-version = "py313"
 line-length    = 100
 src            = ["src", "tests"]
 
@@ -227,7 +227,7 @@ docstring-code-format = true
 
 
 [tool.ty.environment]
-python-version = "3.11"
+python-version = "3.13"
 
 [tool.ty.rules]
 # Ensure TypedDict Required/NotRequired fields are accessed correctly.

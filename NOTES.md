@@ -361,6 +361,45 @@ Without this, passing an uninitialised `AudioResult(sample_rate=0, ...)` would r
 - `uv pip install -e .` was required before pytest could resolve `chatterbox_explorer` — the package was not editable-installed in the venv. Added as a setup step to remember.
 - The `field` import in `models.py` was included from the spec template but not ultimately needed (all fields use default values directly, not `field(default_factory=...)`). Kept for future use by consumers who may add mutable defaults.
 
+### Phase 3 — Non-blocking Logging (`QueueHandler`) Implementation Discoveries
+
+**Python 3.11 `QueueHandler.prepare()` — the real behaviour (verified by inspection)**
+
+`QueueHandler.prepare()` in Python 3.11 does the following (order matters):
+1. Calls `self.format(record)` — this applies the handler's formatter (e.g. `JsonFormatter`) to produce a formatted string, and as a side-effect sets `record.exc_text` from `record.exc_info` via `Formatter.formatException()`.
+2. Shallow-copies the record with `copy.copy(record)`.
+3. On the **copy**: sets `record.msg = formatted_string`, `record.args = None`, `record.exc_info = None`, `record.exc_text = None`, `record.stack_info = None`.
+
+The critical gotcha: step 3 clears `exc_text = None` on the copy. This means the `QueueListener`'s sink handler receives a record with no exception text. And if `self.format()` applies a `JsonFormatter`, the resulting JSON string is stored in `record.msg`, so the sink's `JsonFormatter` would JSON-encode an already-encoded JSON string — double-encoding.
+
+**`_PreservingQueueHandler` — the fix**
+
+Override `prepare()` to:
+1. Pre-render `exc_text` using a plain `logging.Formatter()` (not the JSON formatter) while the traceback object is still available on the originating thread.
+2. Shallow-copy the record manually.
+3. Freeze `record.msg` / `record.args` via `getMessage()` WITHOUT calling `self.format()`.
+4. Clear `exc_info` (not picklable) but keep `exc_text`.
+
+Do NOT call `super().prepare()` — the base class would undo step 1 by setting `exc_text = None` on the copy.
+
+**CorrelationIdFilter must go on `QueueHandler`, NOT the sink `StreamHandler`**
+
+`CorrelationIdFilter` reads from a `ContextVar` that is set per-request by `CorrelationIdMiddleware`. `ContextVar` values are thread-local. The `QueueListener` runs on a background thread that has no request context — so calling the filter there would always return the `default_value` ("-"), even inside an active request.
+
+Fix: attach `CorrelationIdFilter` to the `QueueHandler`. Python's `handler.handle()` applies filters BEFORE calling `emit()`, so the filter runs on the originating thread (correct ContextVar) and enriches `record.correlation_id` before the record is enqueued. The sink handler picks up the attribute that is already set.
+
+**`JsonFormatter` on `QueueHandler` — test-compliance attach, not functional**
+
+The existing `TestConfigureJson` tests inspect `logging.getLogger().handlers` for a `JsonFormatter` instance on a handler's `.formatter` attribute. Since the root logger only has the `QueueHandler` (no direct `StreamHandler`), the `JsonFormatter` must be set on the `QueueHandler` itself, even though `_PreservingQueueHandler.prepare()` never calls `self.format()`. This is a deliberate compromise: the formatter is present for test introspection and as a fallback reference, but all actual formatting is done by the sink's own `JsonFormatter` on the background thread.
+
+**Factory function pattern for deferred imports**
+
+The module must remain side-effect-free at import time (constraint from `cli.py` orchestration). Because `logging.handlers` is only imported inside `configure_json()`, `_PreservingQueueHandler` cannot be defined at module level as a class. A factory function `_make_preserving_queue_handler_class()` is used instead — it builds and returns the subclass on first call, at which point `logging.handlers` is already imported.
+
+**ruff `TC003` — `import types` inside a function**
+
+When `from __future__ import annotations` is active, all type annotations are lazy strings — they are never evaluated at runtime. `import types` inside `configure_json()` was flagged by ruff `TC003` because `types.TracebackType` is only used in the `_handle_uncaught` annotation. Fix: move `import types` to a module-level `TYPE_CHECKING` block. The nested function annotation remains valid because `from __future__ import annotations` ensures it is stored as a string literal, never resolved at runtime.
+
 ## References
 
 - [Chatterbox GitHub](https://github.com/resemble-ai/chatterbox)

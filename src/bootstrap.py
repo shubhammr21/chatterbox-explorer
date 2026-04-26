@@ -208,6 +208,33 @@ def build_rest_app(watermark_available: bool) -> FastAPI:
 
     app.include_router(routes_module.router)
 
+    # ── Exception handlers ────────────────────────────────────────────────
+    # Registered via add_exception_handler() (not the decorator) because the
+    # handlers are defined in a separate module.
+    #
+    # Starlette resolves handlers by MRO — most-specific type wins.
+    # Register against StarletteHTTPException (not fastapi.HTTPException) so
+    # that exceptions raised by Starlette internals are also caught.
+    #
+    # ValueError  → 422: domain input error (not logged — caller's fault)
+    # RuntimeError → 503: infrastructure failure (logged at ERROR)
+    # StarletteHTTPException: delegate to FastAPI default + log ≥500 at ERROR
+    # RequestValidationError: delegate to FastAPI default + log at DEBUG
+    from fastapi.exceptions import RequestValidationError
+    from starlette.exceptions import HTTPException as StarletteHTTPException
+
+    from adapters.inbound.rest.exception_handlers import (
+        http_exception_handler_with_logging,
+        runtime_error_handler,
+        validation_exception_handler_with_logging,
+        value_error_handler,
+    )
+
+    app.add_exception_handler(ValueError, value_error_handler)
+    app.add_exception_handler(RuntimeError, runtime_error_handler)
+    app.add_exception_handler(StarletteHTTPException, http_exception_handler_with_logging)
+    app.add_exception_handler(RequestValidationError, validation_exception_handler_with_logging)
+
     # ── Middleware registration (innermost → outermost) ────────────────────
     # add_middleware() prepends, so last registered = outermost at runtime.
 

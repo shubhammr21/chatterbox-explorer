@@ -14,12 +14,17 @@ Architecture contract
   This keeps the asyncio event loop free during 5-30 s inference operations.
 - GPU/CPU-bound calls are additionally gated by inference_semaphore to
   prevent concurrent model execution that would saturate the device.
-- Error translation:
-      ValueError     → HTTP 422 Unprocessable Entity (caller input error)
-      RuntimeError   → HTTP 503 Service Unavailable  (infrastructure failure)
-      unknown key    → HTTP 404 Not Found
-- VC and watermark endpoints accept UploadFile; bytes are written to a temp
-  file before passing the path to the domain service. Cleanup in finally.
+- Error translation is handled globally, NOT per-route:
+      ValueError  → HTTP 422  (registered in bootstrap.build_rest_app)
+      RuntimeError → HTTP 503  (registered in bootstrap.build_rest_app)
+  Route handlers do NOT contain try/except for these — they simply let
+  exceptions propagate to the ExceptionMiddleware layer where the registered
+  handlers convert them to JSON responses.
+- Routes that create temporary files (VC, Watermark) retain a try/finally
+  block for cleanup. Python guarantees finally executes before the exception
+  propagates to the global handler, so temp files are always cleaned up.
+- Unknown model keys raise HTTPException(404) directly — this is a routing
+  concern, not a domain error, so it does not go through the global handler.
 - This module is imported INSIDE build_rest_app() — safely after all compat
   patches applied in cli.main() have fired.
 """
@@ -117,17 +122,14 @@ async def generate_tts(
     stays free during inference. inference_semaphore ensures only one inference
     runs at a time on the shared GPU/CPU device.
 
+    ValueError and RuntimeError propagate to the global exception handlers
+    registered in bootstrap.build_rest_app() — no per-route try/except needed.
+
     Voice cloning via reference audio is not supported in v1 of the REST API
     (ref_audio_path is always None). Support will be added in v2 via UploadFile.
     """
-    try:
-        async with inference_semaphore:
-            result = await run_in_threadpool(tts.generate, body.to_domain())
-    except ValueError as exc:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc))
-    except RuntimeError as exc:
-        log.exception("TTS generation failed")
-        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(exc))
+    async with inference_semaphore:
+        result = await run_in_threadpool(tts.generate, body.to_domain())
 
     wav = audio_result_to_wav_bytes(result)
     return Response(
@@ -163,15 +165,11 @@ async def generate_turbo(
     Turbo is faster and lower-VRAM than Standard TTS. Supports paralinguistic
     tags ([laugh], [sigh], [clears throat], etc.) but does not support
     exaggeration or CFG weight controls.
+
+    ValueError and RuntimeError propagate to the global exception handlers.
     """
-    try:
-        async with inference_semaphore:
-            result = await run_in_threadpool(turbo.generate, body.to_domain())
-    except ValueError as exc:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc))
-    except RuntimeError as exc:
-        log.exception("Turbo TTS generation failed")
-        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(exc))
+    async with inference_semaphore:
+        result = await run_in_threadpool(turbo.generate, body.to_domain())
 
     wav = audio_result_to_wav_bytes(result)
     return Response(
@@ -208,15 +206,11 @@ async def generate_multilingual(
     Pass the ISO 639-1 language code in the ``language`` field (e.g. ``"fr"``
     for French). Set ``cfg_weight=0`` when the reference speaker's language
     differs from the target to minimise accent bleed.
+
+    ValueError and RuntimeError propagate to the global exception handlers.
     """
-    try:
-        async with inference_semaphore:
-            result = await run_in_threadpool(mtl.generate, body.to_domain())
-    except ValueError as exc:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc))
-    except RuntimeError as exc:
-        log.exception("Multilingual TTS generation failed")
-        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(exc))
+    async with inference_semaphore:
+        result = await run_in_threadpool(mtl.generate, body.to_domain())
 
     wav = audio_result_to_wav_bytes(result)
     return Response(
@@ -262,6 +256,14 @@ async def convert_voice(
 
     Both files must be in a format supported by torchaudio (WAV, MP3, FLAC, etc.).
     The converted audio is returned as a 16-bit mono WAV file.
+
+    Temp file cleanup
+    -----------------
+    The uploaded bytes are written to temporary WAV files so the domain service
+    can load them via torchaudio.  The try/finally block guarantees cleanup
+    regardless of whether the conversion succeeds or raises.  Any ValueError or
+    RuntimeError raised by vc.convert() propagates past the finally block to
+    the global exception handler registered in bootstrap.build_rest_app().
     """
     from domain.models import VoiceConversionRequest
 
@@ -282,15 +284,9 @@ async def convert_voice(
             source_audio_path=src_path,
             target_voice_path=tgt_path,
         )
-        # vc.convert() is blocking inference — offload to thread pool.
         async with inference_semaphore:
             result = await run_in_threadpool(vc.convert, req)
 
-    except ValueError as exc:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc))
-    except RuntimeError as exc:
-        log.exception("Voice conversion failed")
-        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(exc))
     finally:
         for path in (src_path, tgt_path):
             if path and os.path.exists(path):
@@ -370,8 +366,12 @@ async def load_model(
 
     Valid keys: ``tts``, ``turbo``, ``multilingual``, ``vc``.
 
+    An unknown key raises HTTP 404 directly — this is a routing concern, not
+    a domain error.  RuntimeError from manager.load() (e.g. OOM, missing
+    weights) propagates to the global exception handler → HTTP 503.
+
     manager.load() downloads weights and initialises the model on the device —
-    this can take seconds and is blocking I/O; offloaded to a thread pool.
+    this can take seconds; offloaded to a thread pool.
     """
     known_keys = {s.key for s in await run_in_threadpool(manager.get_all_status)}
     if key not in known_keys:
@@ -379,12 +379,8 @@ async def load_model(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Unknown model key {key!r}. Valid keys: {sorted(known_keys)}",
         )
-    try:
-        async with inference_semaphore:
-            message = await run_in_threadpool(manager.load, cast("ModelKey", key))
-    except RuntimeError as exc:
-        log.exception("Model load failed: %s", key)
-        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(exc))
+    async with inference_semaphore:
+        message = await run_in_threadpool(manager.load, cast("ModelKey", key))
     return MessageResponse(message=message)
 
 
@@ -405,8 +401,8 @@ async def unload_model(
 ) -> MessageResponse:
     """Unload the model identified by ``key``, flushing device memory.
 
-    manager.unload() synchronizes GPU cache and runs gc.collect() — blocking;
-    offloaded to a thread pool.
+    An unknown key raises HTTP 404 directly.  manager.unload() synchronizes
+    GPU cache and runs gc.collect() — blocking; offloaded to a thread pool.
     """
     known_keys = {s.key for s in await run_in_threadpool(manager.get_all_status)}
     if key not in known_keys:
@@ -453,6 +449,13 @@ async def detect_watermark(
     - ``not_detected`` — no watermark signal found
     - ``inconclusive`` — score is in the ambiguous range
     - ``unavailable``  — detection library not installed
+
+    Temp file cleanup
+    -----------------
+    The uploaded bytes are written to a temporary WAV file so the domain
+    service can load it via librosa.  The try/finally block guarantees
+    cleanup regardless of whether detection succeeds or raises.  Any
+    ValueError propagates past the finally block to the global handler.
     """
     tmp_path: str | None = None
 
@@ -461,12 +464,9 @@ async def detect_watermark(
             tmp.write(await audio.read())
             tmp_path = tmp.name
 
-        # watermark.detect() runs neural inference — offload to thread pool.
         async with inference_semaphore:
             result = await run_in_threadpool(watermark.detect, tmp_path)
 
-    except ValueError as exc:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc))
     finally:
         if tmp_path and os.path.exists(tmp_path):
             try:

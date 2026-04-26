@@ -14,6 +14,7 @@ from __future__ import annotations
 from typing import Iterator
 
 from domain.models import MemoryStats, ModelStatus
+from domain.types import ModelKey
 from ports.output import IMemoryMonitor, IModelRepository
 
 
@@ -42,7 +43,7 @@ class ModelManagerService:
     # Load
     # ──────────────────────────────────────────────────────────────────────────
 
-    def load(self, key: str) -> str:
+    def load(self, key: ModelKey) -> str:
         """Load the model identified by *key* into memory.
 
         If the model is already in memory this is a no-op and an informational
@@ -78,7 +79,7 @@ class ModelManagerService:
     # Unload
     # ──────────────────────────────────────────────────────────────────────────
 
-    def unload(self, key: str) -> str:
+    def unload(self, key: ModelKey) -> str:
         """Unload the model identified by *key* from memory.
 
         If the model is not currently in memory this is a no-op and an
@@ -102,7 +103,7 @@ class ModelManagerService:
     # Download
     # ──────────────────────────────────────────────────────────────────────────
 
-    def download(self, key: str) -> Iterator[str]:
+    def download(self, key: ModelKey) -> Iterator[str]:
         """Download model weights for *key*, streaming progress lines.
 
         Each yielded string is a human-readable progress message suitable for

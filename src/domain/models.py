@@ -1,6 +1,6 @@
 """
-src/chatterbox_explorer/domain/models.py
-=========================================
+src/domain/models.py
+=====================
 Pure domain dataclasses — zero framework dependencies.
 
 Allowed imports: stdlib (dataclasses, typing) + numpy for AudioResult.samples.
@@ -9,9 +9,11 @@ appearing here is an architecture violation.
 """
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 import numpy as np
+
+from domain.types import DeviceType, LanguageCode, ModelKey, WatermarkVerdict
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -65,7 +67,7 @@ class MultilingualTTSRequest:
     artefacts on non-English languages.
     """
     text: str
-    language: str = "en"
+    language: LanguageCode = "en"
     ref_audio_path: str | None = None
     exaggeration: float = 0.5
     cfg_weight: float = 0.5
@@ -121,7 +123,7 @@ class ModelStatus:
     Populated by IModelManagerService.get_all_status() and consumed by the
     Gradio model-manager tab renderer.
     """
-    key: str           # e.g. "tts" | "turbo" | "multilingual" | "vc"
+    key: ModelKey      # "tts" | "turbo" | "multilingual" | "vc"
     display_name: str  # e.g. "Standard TTS"
     class_name: str    # e.g. "ChatterboxTTS"
     description: str
@@ -163,7 +165,7 @@ class WatermarkResult:
         "unavailable"   — detection library not installed / failed to initialise
     """
     score: float
-    verdict: str   # "detected" | "not_detected" | "inconclusive" | "unavailable"
+    verdict: WatermarkVerdict
     message: str
     available: bool
 
@@ -179,5 +181,5 @@ class AppConfig:
     Passed into services and adapters via dependency injection so that no
     module reads environment variables or detects hardware on its own.
     """
-    device: str               # "cpu" | "cuda" | "mps"
+    device: DeviceType
     watermark_available: bool

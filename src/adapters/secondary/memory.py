@@ -1,5 +1,7 @@
 """System and device memory monitoring."""
 import logging
+
+from domain.types import DeviceType
 import time
 from typing import ClassVar
 
@@ -30,7 +32,7 @@ class PsutilMemoryMonitor(IMemoryMonitor):
 
     _TTL: ClassVar[float] = 1.5  # seconds between real stat reads
 
-    def __init__(self, device: str) -> None:
+    def __init__(self, device: DeviceType) -> None:
         """
         Args:
             device: Compute device string — ``"cpu"``, ``"cuda"``, or ``"mps"``.

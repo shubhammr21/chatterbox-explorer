@@ -1,5 +1,5 @@
 """
-src/adapters/secondary/model_loader.py
+src/adapters/secondary/model_loader.py  (updated: ModelKey + ModelMetadata types)
 ============================================================
 Secondary adapter: wraps lazy model loading, HuggingFace downloads,
 disk-cache probing, and memory unloading behind the IModelRepository port.
@@ -15,8 +15,9 @@ from __future__ import annotations
 import gc
 import logging
 import os
-from typing import Iterator
+from typing import Any, Iterator
 
+from domain.types import ALL_MODEL_KEYS, DlMode, ModelKey, ModelMetadata
 from ports.output import IModelRepository
 
 log = logging.getLogger(__name__)
@@ -38,7 +39,7 @@ log = logging.getLogger(__name__)
 #   dl_files      — list of filenames (dl_mode == "files" only)
 #   dl_patterns   — glob patterns   (dl_mode == "snapshot" only)
 
-MODEL_REGISTRY: dict[str, dict] = {
+MODEL_REGISTRY: dict[ModelKey, ModelMetadata] = {
     "tts": {
         "display_name": "Standard TTS",
         "class_name":   "ChatterboxTTS",
@@ -47,7 +48,7 @@ MODEL_REGISTRY: dict[str, dict] = {
         "size_gb":      1.4,
         "repo_id":      "ResembleAI/chatterbox",
         "check_file":   "t3_cfg.safetensors",
-        "dl_mode":      "files",
+        "dl_mode":      "files",        # type: DlMode
         "dl_files":     [
             "ve.safetensors",
             "t3_cfg.safetensors",
@@ -64,7 +65,7 @@ MODEL_REGISTRY: dict[str, dict] = {
         "size_gb":      2.9,
         "repo_id":      "ResembleAI/chatterbox-turbo",
         "check_file":   "t3_turbo_v1.safetensors",
-        "dl_mode":      "snapshot",
+        "dl_mode":      "snapshot",     # type: DlMode
         "dl_patterns":  ["*.safetensors", "*.json", "*.txt", "*.pt", "*.model"],
     },
     "multilingual": {
@@ -75,7 +76,7 @@ MODEL_REGISTRY: dict[str, dict] = {
         "size_gb":      1.5,
         "repo_id":      "ResembleAI/chatterbox",
         "check_file":   "t3_mtl23ls_v2.safetensors",
-        "dl_mode":      "snapshot",
+        "dl_mode":      "snapshot",     # type: DlMode
         "dl_patterns":  [
             "ve.pt",
             "t3_mtl23ls_v2.safetensors",
@@ -93,7 +94,7 @@ MODEL_REGISTRY: dict[str, dict] = {
         "size_gb":      0.4,
         "repo_id":      "ResembleAI/chatterbox",
         "check_file":   "s3gen.safetensors",
-        "dl_mode":      "files",
+        "dl_mode":      "files",        # type: DlMode
         "dl_files":     ["s3gen.safetensors", "conds.pt"],
     },
 }
@@ -123,13 +124,13 @@ class ChatterboxModelLoader(IModelRepository):
 
     def __init__(self, device: str) -> None:
         self._device = device
-        self._cache: dict[str, object] = {}
+        self._cache: dict[ModelKey, Any] = {}
 
     # ──────────────────────────────────────────────────────────────────────────
     # IModelRepository — load / unload
     # ──────────────────────────────────────────────────────────────────────────
 
-    def get_model(self, key: str) -> object:
+    def get_model(self, key: ModelKey) -> Any:
         """Return the live model object for *key*, loading it if necessary.
 
         Models are loaded lazily on first access.  Subsequent calls return the
@@ -183,11 +184,11 @@ class ChatterboxModelLoader(IModelRepository):
         log.info("Model '%s' ready ✓", key)
         return model
 
-    def is_loaded(self, key: str) -> bool:
+    def is_loaded(self, key: ModelKey) -> bool:
         """Return True if the model for *key* is currently held in memory."""
         return key in self._cache
 
-    def is_cached_on_disk(self, key: str) -> bool:
+    def is_cached_on_disk(self, key: ModelKey) -> bool:
         """Return True if the primary weight file for *key* exists in the HF cache.
 
         Uses ``huggingface_hub.try_to_load_from_cache()`` which is a pure
@@ -214,7 +215,7 @@ class ChatterboxModelLoader(IModelRepository):
         except Exception:
             return False
 
-    def unload(self, key: str) -> None:
+    def unload(self, key: ModelKey) -> None:
         """Remove the model for *key* from memory and flush device memory.
 
         Five-step MPS-confirmed recipe:
@@ -271,7 +272,7 @@ class ChatterboxModelLoader(IModelRepository):
     # IModelRepository — download
     # ──────────────────────────────────────────────────────────────────────────
 
-    def download(self, key: str) -> Iterator[str]:
+    def download(self, key: ModelKey) -> Iterator[str]:
         """Download weights for *key* to the HF disk cache.
 
         Replicates the exact ``hf_hub_download`` / ``snapshot_download`` calls
@@ -336,18 +337,18 @@ class ChatterboxModelLoader(IModelRepository):
     # IModelRepository — metadata
     # ──────────────────────────────────────────────────────────────────────────
 
-    def get_all_keys(self) -> list[str]:
+    def get_all_keys(self) -> list[ModelKey]:
         """Return every model key known to this repository, in registry order."""
         return list(MODEL_REGISTRY.keys())
 
-    def get_display_name(self, key: str) -> str:
+    def get_display_name(self, key: ModelKey) -> str:
         """Return the human-readable label for *key* (e.g. ``'Standard TTS'``).
 
         Falls back to the key itself if not found in the registry.
         """
         return MODEL_REGISTRY.get(key, {}).get("display_name", key)
 
-    def get_model_metadata(self, key: str) -> dict:
+    def get_model_metadata(self, key: ModelKey) -> ModelMetadata:
         """Return a metadata dict for *key* with the following keys:
 
         ``size_gb``     (float)  — weight file size on disk
@@ -369,7 +370,7 @@ class ChatterboxModelLoader(IModelRepository):
     # Private helpers
     # ──────────────────────────────────────────────────────────────────────────
 
-    def _load(self, key: str) -> object:
+    def _load(self, key: ModelKey) -> Any:
         """Dispatch to the correct Chatterbox from_pretrained() factory.
 
         All chatterbox imports are deferred to this method so that importing

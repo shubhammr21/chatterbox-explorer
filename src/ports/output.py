@@ -1,12 +1,12 @@
 """
-src/chatterbox_explorer/ports/output.py
-=========================================
+src/ports/output.py
+====================
 Output-port ABCs: interfaces the domain/services use to reach infrastructure.
 
 Hexagonal rule: service code depends ONLY on these abstractions.
 Adapters (infra layer) provide the concrete implementations.
 
-Allowed imports: abc, typing, domain models.
+Allowed imports: abc, typing, domain models and types.
 Forbidden: torch, gradio, chatterbox, psutil, huggingface_hub.
 """
 from __future__ import annotations
@@ -15,6 +15,7 @@ from abc import ABC, abstractmethod
 from typing import Any, Iterator
 
 from domain.models import MemoryStats
+from domain.types import ModelKey, ModelMetadata
 
 
 class IModelRepository(ABC):
@@ -26,7 +27,7 @@ class IModelRepository(ABC):
     """
 
     @abstractmethod
-    def get_model(self, key: str) -> Any:
+    def get_model(self, key: ModelKey) -> Any:
         """Return the live model object for *key*, loading it if necessary.
 
         Raises:
@@ -36,17 +37,17 @@ class IModelRepository(ABC):
         ...
 
     @abstractmethod
-    def is_loaded(self, key: str) -> bool:
+    def is_loaded(self, key: ModelKey) -> bool:
         """Return True if the model for *key* is currently in memory."""
         ...
 
     @abstractmethod
-    def is_cached_on_disk(self, key: str) -> bool:
+    def is_cached_on_disk(self, key: ModelKey) -> bool:
         """Return True if the model weights are present in the local cache."""
         ...
 
     @abstractmethod
-    def unload(self, key: str) -> None:
+    def unload(self, key: ModelKey) -> None:
         """Remove the model for *key* from memory (does NOT delete disk cache).
 
         No-op if the model is not currently loaded.
@@ -54,7 +55,7 @@ class IModelRepository(ABC):
         ...
 
     @abstractmethod
-    def download(self, key: str) -> Iterator[str]:
+    def download(self, key: ModelKey) -> Iterator[str]:
         """Download weights for *key* and yield human-readable progress lines.
 
         Each yielded string is suitable for streaming to a UI log widget.
@@ -62,24 +63,22 @@ class IModelRepository(ABC):
         ...
 
     @abstractmethod
-    def get_all_keys(self) -> list[str]:
+    def get_all_keys(self) -> list[ModelKey]:
         """Return every model key known to this repository."""
         ...
 
     @abstractmethod
-    def get_display_name(self, key: str) -> str:
+    def get_display_name(self, key: ModelKey) -> str:
         """Return a human-readable label for *key* (e.g. 'Standard TTS')."""
         ...
 
     @abstractmethod
-    def get_model_metadata(self, key: str) -> dict:
-        """Return a metadata dict for *key*.
+    def get_model_metadata(self, key: ModelKey) -> ModelMetadata:
+        """Return the typed metadata record for *key*.
 
-        Expected keys (all optional but recommended):
-            size_gb    (float)  — weight file size on disk
-            params     (str)    — parameter count label, e.g. '500M'
-            description (str)  — one-line description
-            class_name (str)   — Python class name of the model, e.g. 'ChatterboxTTS'
+        Keys and value types are defined by :class:`~domain.types.ModelMetadata`.
+        Every field marked ``Required`` in that TypedDict is guaranteed to be
+        present; ``NotRequired`` fields depend on the ``dl_mode`` value.
         """
         ...
 

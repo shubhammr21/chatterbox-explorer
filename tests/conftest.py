@@ -17,6 +17,8 @@ import numpy as np
 import pytest
 from unittest.mock import MagicMock
 
+from domain.types import ALL_MODEL_KEYS
+
 try:
     import torch
     HAS_TORCH = True
@@ -82,7 +84,7 @@ def mock_model_repo(mock_model):
     repo.get_model.return_value = mock_model
     repo.is_loaded.return_value = False
     repo.is_cached_on_disk.return_value = False
-    repo.get_all_keys.return_value = ["tts", "turbo", "multilingual", "vc"]
+    repo.get_all_keys.return_value = list(ALL_MODEL_KEYS)
     repo.get_display_name.side_effect = lambda k: k.upper()
     repo.get_model_metadata.return_value = {
         "size_gb": 1.0,

@@ -1,6 +1,6 @@
 """
-src/chatterbox_explorer/services/watermark.py
-===============================================
+src/services/watermark.py
+==========================
 Domain service for watermark detection.
 
 Rules:
@@ -17,6 +17,7 @@ Verdict thresholds (mirrors app.py logic):
 from __future__ import annotations
 
 from domain.models import WatermarkResult
+from domain.types import WatermarkVerdict
 from ports.output import IWatermarkDetector
 
 
@@ -84,7 +85,7 @@ class WatermarkService:
     # Private helpers
     # ──────────────────────────────────────────────────────────────────────────
 
-    def _classify(self, score: float) -> tuple[str, str]:
+    def _classify(self, score: float) -> tuple[WatermarkVerdict, str]:
         """Map a raw detector score to a (verdict, message) pair."""
         if score >= self._DETECTED_THRESHOLD:
             return (

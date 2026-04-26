@@ -1,11 +1,15 @@
 """Device detection and seed management — infra concerns, not domain."""
+from __future__ import annotations
+
 import logging
 import random
+
+from domain.types import DeviceType
 
 log = logging.getLogger(__name__)
 
 
-def detect_device() -> str:
+def detect_device() -> DeviceType:
     """Return the best available compute device: 'cuda' > 'mps' > 'cpu'.
 
     Ordering rationale:

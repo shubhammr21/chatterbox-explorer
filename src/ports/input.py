@@ -1,6 +1,6 @@
 """
-src/chatterbox_explorer/ports/input.py
-========================================
+src/ports/input.py
+===================
 Input-side (primary) port interfaces — the ABCs that the application core
 exposes to its driving adapters (Gradio UI, CLI, tests).
 
@@ -12,6 +12,7 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from typing import Iterator
 
+from domain.types import ModelKey
 from domain.models import (
     AudioResult,
     MemoryStats,
@@ -118,7 +119,7 @@ class IModelManagerService(ABC):
     """Driving port for model lifecycle management (load / unload / download)."""
 
     @abstractmethod
-    def load(self, key: str) -> str:
+    def load(self, key: ModelKey) -> str:
         """Load the model identified by *key* into memory.
 
         Returns:
@@ -130,7 +131,7 @@ class IModelManagerService(ABC):
         ...
 
     @abstractmethod
-    def unload(self, key: str) -> str:
+    def unload(self, key: ModelKey) -> str:
         """Unload the model identified by *key* from memory.
 
         Returns:
@@ -139,7 +140,7 @@ class IModelManagerService(ABC):
         ...
 
     @abstractmethod
-    def download(self, key: str) -> Iterator[str]:
+    def download(self, key: ModelKey) -> Iterator[str]:
         """Download the model identified by *key*, yielding progress lines."""
         ...
 

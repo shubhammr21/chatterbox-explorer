@@ -78,6 +78,15 @@ Logging policy
   HTTPException 4xx         — expected client error; NOT logged at ERROR
   HTTPException 5xx         — unexpected server error; logged at ERROR
   RequestValidationError    — bad request schema; logged at DEBUG only
+
+Error response shape
+--------------------
+Every handler returns the same JSON envelope so clients need only one parser:
+
+    {"errors": [{"message": "<human-readable>", "path": [...]}]}
+
+The ``path`` list is populated for validation errors (Pydantic field location)
+and left empty for all other error types.
 """
 
 from __future__ import annotations
@@ -85,17 +94,14 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
-from fastapi.exception_handlers import (
-    http_exception_handler,
-    request_validation_exception_handler,
-)
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
+from adapters.inbound.rest.schemas import ErrorDetail, ErrorResponse
+
 if TYPE_CHECKING:
     from fastapi import Request
-    from starlette.responses import Response
 
 log = logging.getLogger(__name__)
 
@@ -112,9 +118,12 @@ async def tts_input_error_handler(request: Request, exc: Exception) -> JSONRespo
         exc: The exception that was raised; will be a ``TTSInputError`` instance.
 
     Returns:
-        A ``JSONResponse`` with status 422 and body ``{"detail": "<message>"}``.
+        A ``JSONResponse`` with status 422 and a consistent ``ErrorResponse`` body.
     """
-    return JSONResponse(status_code=422, content={"detail": str(exc)})
+    return JSONResponse(
+        status_code=422,
+        content=ErrorResponse(errors=[ErrorDetail(message=str(exc))]).model_dump(),
+    )
 
 
 async def vc_input_error_handler(request: Request, exc: Exception) -> JSONResponse:
@@ -128,9 +137,12 @@ async def vc_input_error_handler(request: Request, exc: Exception) -> JSONRespon
         exc: The exception that was raised; will be a ``VoiceConversionInputError`` instance.
 
     Returns:
-        A ``JSONResponse`` with status 422 and body ``{"detail": "<message>"}``.
+        A ``JSONResponse`` with status 422 and a consistent ``ErrorResponse`` body.
     """
-    return JSONResponse(status_code=422, content={"detail": str(exc)})
+    return JSONResponse(
+        status_code=422,
+        content=ErrorResponse(errors=[ErrorDetail(message=str(exc))]).model_dump(),
+    )
 
 
 async def model_error_handler(request: Request, exc: Exception) -> JSONResponse:
@@ -145,7 +157,7 @@ async def model_error_handler(request: Request, exc: Exception) -> JSONResponse:
         exc: The exception that was raised; will be a ``ModelError`` instance.
 
     Returns:
-        A ``JSONResponse`` with status 503 and body ``{"detail": "<message>"}``.
+        A ``JSONResponse`` with status 503 and a consistent ``ErrorResponse`` body.
     """
     log.error(
         "Model error at %s %s: %s",
@@ -154,7 +166,10 @@ async def model_error_handler(request: Request, exc: Exception) -> JSONResponse:
         exc,
         exc_info=exc,
     )
-    return JSONResponse(status_code=503, content={"detail": str(exc)})
+    return JSONResponse(
+        status_code=503,
+        content=ErrorResponse(errors=[ErrorDetail(message=str(exc))]).model_dump(),
+    )
 
 
 async def chatterbox_error_handler(request: Request, exc: Exception) -> JSONResponse:
@@ -169,7 +184,7 @@ async def chatterbox_error_handler(request: Request, exc: Exception) -> JSONResp
         exc: The exception that was raised; will be a ``ChatterboxError`` instance.
 
     Returns:
-        A ``JSONResponse`` with status 500 and body ``{"detail": "<message>"}``.
+        A ``JSONResponse`` with status 500 and a consistent ``ErrorResponse`` body.
     """
     log.error(
         "Unhandled domain error at %s %s: %s",
@@ -178,18 +193,21 @@ async def chatterbox_error_handler(request: Request, exc: Exception) -> JSONResp
         exc,
         exc_info=exc,
     )
-    return JSONResponse(status_code=500, content={"detail": str(exc)})
+    return JSONResponse(
+        status_code=500,
+        content=ErrorResponse(errors=[ErrorDetail(message=str(exc))]).model_dump(),
+    )
 
 
 async def http_exception_handler_with_logging(
     request: Request,
     exc: Exception,
-) -> Response:
-    """Wrap FastAPI's default ``HTTPException`` handler with selective logging.
+) -> JSONResponse:
+    """Handle ``HTTPException`` with selective logging, returning a consistent error envelope.
 
-    Delegates entirely to ``fastapi.exception_handlers.http_exception_handler``
-    for response construction so the response body and header format is
-    identical to what FastAPI produces by default.
+    Builds the response directly as an ``ErrorResponse`` — no delegation to
+    FastAPI's default ``http_exception_handler`` — so the response body uses
+    the same ``{"errors": [...]}`` shape as all other handlers.
 
     Logging policy:
       - ``status_code >= 500``: logged at ERROR — unexpected server faults.
@@ -202,14 +220,15 @@ async def http_exception_handler_with_logging(
 
     The ``exc`` parameter is typed as ``Exception`` to satisfy the Starlette
     handler protocol.  An isinstance check narrows to ``StarletteHTTPException``
-    before accessing ``.status_code`` and delegating to the default handler.
+    before accessing ``.status_code`` and ``.detail``.
 
     Args:
         request: The incoming HTTP request.
         exc: The exception that was raised; will be a ``StarletteHTTPException``.
 
     Returns:
-        The same ``Response`` that FastAPI's default handler would return.
+        A ``JSONResponse`` with the HTTP exception's status code and a consistent
+        ``ErrorResponse`` body.
     """
     http_exc = exc if isinstance(exc, StarletteHTTPException) else StarletteHTTPException(500)
     if http_exc.status_code >= 500:
@@ -220,19 +239,22 @@ async def http_exception_handler_with_logging(
             request.url.path,
             http_exc.detail,
         )
-    return await http_exception_handler(request, http_exc)
+    return JSONResponse(
+        status_code=http_exc.status_code,
+        content=ErrorResponse(errors=[ErrorDetail(message=str(http_exc.detail))]).model_dump(),
+    )
 
 
 async def validation_exception_handler_with_logging(
     request: Request,
     exc: Exception,
-) -> Response:
-    """Wrap FastAPI's default ``RequestValidationError`` handler with DEBUG logging.
+) -> JSONResponse:
+    """Handle ``RequestValidationError`` with DEBUG logging, returning a consistent error envelope.
 
-    Delegates entirely to
-    ``fastapi.exception_handlers.request_validation_exception_handler`` for
-    response construction — the response body is the standard FastAPI 422
-    payload with a ``"detail"`` list of per-field Pydantic error objects.
+    Builds the response directly as an ``ErrorResponse`` — each Pydantic field
+    error becomes one ``ErrorDetail`` with ``message`` from ``err["msg"]`` and
+    ``path`` from ``err["loc"]``.  This gives clients a uniform shape for all
+    error types while preserving per-field location information.
 
     Logging policy: DEBUG only.  Validation errors are common client mistakes
     (wrong field type, missing required field) and do not indicate a server
@@ -241,20 +263,27 @@ async def validation_exception_handler_with_logging(
 
     The ``exc`` parameter is typed as ``Exception`` to satisfy the Starlette
     handler protocol.  An isinstance check narrows to ``RequestValidationError``
-    before accessing ``.errors()`` and delegating to the default handler.
+    before accessing ``.errors()``.
 
     Args:
         request: The incoming HTTP request.
         exc: The exception that was raised; will be a ``RequestValidationError``.
 
     Returns:
-        The same 422 ``Response`` that FastAPI's default handler would return.
+        A 422 ``JSONResponse`` with a consistent ``ErrorResponse`` body whose
+        ``errors`` list mirrors the Pydantic per-field error list.
     """
     val_exc = exc if isinstance(exc, RequestValidationError) else RequestValidationError([])
+    exc_errors = val_exc.errors()
     log.debug(
         "Request validation error at %s %s: %s",
         request.method,
         request.url.path,
-        val_exc.errors(),
+        exc_errors,
     )
-    return await request_validation_exception_handler(request, val_exc)
+    return JSONResponse(
+        status_code=422,
+        content=ErrorResponse(
+            errors=[ErrorDetail(message=err["msg"], path=list(err["loc"])) for err in exc_errors]
+        ).model_dump(),
+    )

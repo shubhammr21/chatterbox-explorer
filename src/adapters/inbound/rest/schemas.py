@@ -295,3 +295,25 @@ def audio_result_to_wav_bytes(result: AudioResult) -> bytes:
     buf = io.BytesIO()
     wavfile.write(buf, result.sample_rate, int16_arr)
     return buf.getvalue()
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Consistent error envelope
+# ──────────────────────────────────────────────────────────────────────────────
+
+
+class ErrorDetail(BaseModel):
+    """Single error item in an error response."""
+
+    message: str
+    path: list[str | int] = Field(default_factory=list)
+
+
+class ErrorResponse(BaseModel):
+    """Consistent error envelope for all REST error responses.
+
+    Every error response (422, 503, 500, etc.) must use this shape so
+    clients only need to parse one structure.
+    """
+
+    errors: list[ErrorDetail]

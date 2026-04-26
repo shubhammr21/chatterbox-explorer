@@ -161,6 +161,9 @@ def build_rest_app(watermark_available: bool) -> FastAPI:
     from adapters.inbound.rest import routes as routes_module
     from adapters.inbound.rest.middleware import RequestLoggingMiddleware
     from infrastructure.container import AppContainer
+    from infrastructure.settings import RestSettings
+
+    rest_settings = RestSettings()
 
     class ChatterboxAPI(FastAPI):
         """FastAPI subclass that carries a typed reference to the DI container.
@@ -198,6 +201,7 @@ def build_rest_app(watermark_available: bool) -> FastAPI:
             "REST API for Chatterbox TTS — Standard, Turbo, Multilingual, "
             "Voice Conversion, Model Management, and Watermark Detection."
         ),
+        debug=rest_settings.environment.is_debug,
         lifespan=lifespan,
     )
 

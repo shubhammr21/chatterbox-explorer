@@ -25,32 +25,32 @@ Handlers under test
 -------------------
 tts_input_error_handler
     TTSInputError (EmptyTextError, ReferenceTooShortError) → 422
-    Body: {"detail": "<exception message>"}
+    Body: {"errors": [{"message": "<exception message>", "path": []}]}
     Logging: none (caller error — silent)
 
 vc_input_error_handler
     VoiceConversionInputError (MissingSourceAudioError, MissingTargetVoiceError) → 422
-    Body: {"detail": "<exception message>"}
+    Body: {"errors": [{"message": "<exception message>", "path": []}]}
     Logging: none (caller error — silent)
 
 model_error_handler
     ModelError (ModelLoadError, ModelNotLoadedError, InferenceError) → 503
-    Body: {"detail": "<exception message>"}
+    Body: {"errors": [{"message": "<exception message>", "path": []}]}
     Logging: ERROR level with traceback
 
 chatterbox_error_handler
     ChatterboxError (catch-all) → 500
-    Body: {"detail": "<exception message>"}
+    Body: {"errors": [{"message": "<exception message>", "path": []}]}
     Logging: ERROR level with traceback
 
 http_exception_handler_with_logging
     StarletteHTTPException → same status code as the exception
-    Delegates to FastAPI's default http_exception_handler.
+    Builds an ErrorResponse directly (no delegation to FastAPI default).
     Logs at ERROR level for status >= 500, silent otherwise.
 
 validation_exception_handler_with_logging
-    RequestValidationError → 422 with FastAPI's standard detail list
-    Delegates to FastAPI's default request_validation_exception_handler.
+    RequestValidationError → 422 with per-field ErrorDetail list.
+    Builds an ErrorResponse directly (no delegation to FastAPI default).
     Logs at DEBUG level.
 
 Architecture rules
@@ -156,7 +156,7 @@ class TestTTSInputErrorHandler:
         req = _make_mock_request()
         resp = await tts_input_error_handler(req, EmptyTextError(""))
         body = json.loads(bytes(resp.body))
-        assert "detail" in body
+        assert "errors" in body
 
     @pytest.mark.anyio
     async def test_body_detail_matches_exception_message(self) -> None:
@@ -169,7 +169,7 @@ class TestTTSInputErrorHandler:
         req = _make_mock_request()
         resp = await tts_input_error_handler(req, exc)
         body = json.loads(bytes(resp.body))
-        assert body["detail"] == str(exc)
+        assert body["errors"][0]["message"] == str(exc)
 
     @pytest.mark.anyio
     async def test_body_detail_for_reference_too_short_matches_message(self) -> None:
@@ -182,7 +182,7 @@ class TestTTSInputErrorHandler:
         req = _make_mock_request()
         resp = await tts_input_error_handler(req, exc)
         body = json.loads(bytes(resp.body))
-        assert body["detail"] == str(exc)
+        assert body["errors"][0]["message"] == str(exc)
 
     @pytest.mark.anyio
     async def test_does_not_log(self, caplog: pytest.LogCaptureFixture) -> None:
@@ -235,7 +235,7 @@ class TestTTSInputErrorHandler:
             raise EmptyTextError("")
 
         resp = TestClient(app, raise_server_exceptions=False).get("/raise")
-        assert resp.json()["detail"] == str(exc)
+        assert resp.json()["errors"][0]["message"] == str(exc)
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -281,7 +281,7 @@ class TestVCInputErrorHandler:
         req = _make_mock_request()
         resp = await vc_input_error_handler(req, MissingSourceAudioError())
         body = json.loads(bytes(resp.body))
-        assert "detail" in body
+        assert "errors" in body
 
     @pytest.mark.anyio
     async def test_body_detail_matches_exception_message(self) -> None:
@@ -294,7 +294,7 @@ class TestVCInputErrorHandler:
         req = _make_mock_request()
         resp = await vc_input_error_handler(req, exc)
         body = json.loads(bytes(resp.body))
-        assert body["detail"] == str(exc)
+        assert body["errors"][0]["message"] == str(exc)
 
     @pytest.mark.anyio
     async def test_does_not_log(self, caplog: pytest.LogCaptureFixture) -> None:
@@ -347,7 +347,7 @@ class TestVCInputErrorHandler:
             raise MissingSourceAudioError()
 
         resp = TestClient(app, raise_server_exceptions=False).get("/raise")
-        assert resp.json()["detail"] == str(exc)
+        assert resp.json()["errors"][0]["message"] == str(exc)
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -402,7 +402,7 @@ class TestModelErrorHandler:
         req = _make_mock_request()
         resp = await model_error_handler(req, ModelLoadError(model_key="tts", message="OOM"))
         body = json.loads(bytes(resp.body))
-        assert "detail" in body
+        assert "errors" in body
 
     @pytest.mark.anyio
     async def test_body_detail_matches_exception_message(self) -> None:
@@ -415,7 +415,7 @@ class TestModelErrorHandler:
         req = _make_mock_request()
         resp = await model_error_handler(req, exc)
         body = json.loads(bytes(resp.body))
-        assert body["detail"] == str(exc)
+        assert body["errors"][0]["message"] == str(exc)
 
     @pytest.mark.anyio
     async def test_logs_at_error_level(self, caplog: pytest.LogCaptureFixture) -> None:
@@ -481,7 +481,7 @@ class TestModelErrorHandler:
             raise ModelLoadError(model_key="tts", message="weights missing")
 
         resp = TestClient(app, raise_server_exceptions=False).get("/raise")
-        assert resp.json()["detail"] == str(exc)
+        assert resp.json()["errors"][0]["message"] == str(exc)
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -518,7 +518,7 @@ class TestChatterboxErrorHandler:
         req = _make_mock_request()
         resp = await chatterbox_error_handler(req, ChatterboxError("domain failure"))
         body = json.loads(bytes(resp.body))
-        assert "detail" in body
+        assert "errors" in body
 
     @pytest.mark.anyio
     async def test_body_detail_matches_exception_message(self) -> None:
@@ -531,7 +531,7 @@ class TestChatterboxErrorHandler:
         req = _make_mock_request()
         resp = await chatterbox_error_handler(req, exc)
         body = json.loads(bytes(resp.body))
-        assert body["detail"] == str(exc)
+        assert body["errors"][0]["message"] == str(exc)
 
     @pytest.mark.anyio
     async def test_logs_at_error_level(self, caplog: pytest.LogCaptureFixture) -> None:
@@ -583,7 +583,7 @@ class TestChatterboxErrorHandler:
             raise ChatterboxError("unclassified domain failure")
 
         resp = TestClient(app, raise_server_exceptions=False).get("/raise")
-        assert resp.json()["detail"] == "unclassified domain failure"
+        assert resp.json()["errors"][0]["message"] == "unclassified domain failure"
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -690,7 +690,7 @@ class TestHttpExceptionHandlerWithLogging:
 
         resp = TestClient(app, raise_server_exceptions=False).get("/raise")
         assert resp.status_code == 404
-        assert resp.json()["detail"] == "key not found"
+        assert resp.json()["errors"][0]["message"] == "key not found"
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -738,7 +738,7 @@ class TestValidationExceptionHandlerWithLogging:
         assert resp.status_code == 422
 
     @pytest.mark.anyio
-    async def test_body_contains_detail_list(self) -> None:
+    async def test_body_contains_errors_list(self) -> None:
         import json
 
         from adapters.inbound.rest.exception_handlers import (
@@ -749,8 +749,8 @@ class TestValidationExceptionHandlerWithLogging:
         exc = self._make_request_validation_error()
         resp = await validation_exception_handler_with_logging(req, exc)
         body = json.loads(bytes(resp.body))
-        assert "detail" in body
-        assert isinstance(body["detail"], list)
+        assert "errors" in body
+        assert isinstance(body["errors"], list)
 
     @pytest.mark.anyio
     async def test_logs_at_debug_level(self, caplog: pytest.LogCaptureFixture) -> None:
@@ -801,9 +801,9 @@ class TestValidationExceptionHandlerWithLogging:
         )
         assert resp.status_code == 422
         data = resp.json()
-        assert "detail" in data
-        assert isinstance(data["detail"], list)
-        assert len(data["detail"]) >= 1
+        assert "errors" in data
+        assert isinstance(data["errors"], list)
+        assert len(data["errors"]) >= 1
 
 
 # ──────────────────────────────────────────────────────────────────────────────

@@ -721,3 +721,57 @@ class TestAudioResultToWavBytes:
         import numpy as _np
 
         assert _np is not None
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# ErrorDetail and ErrorResponse
+# ──────────────────────────────────────────────────────────────────────────────
+
+
+class TestErrorResponse:
+    """ErrorDetail and ErrorResponse — consistent error envelope."""
+
+    def test_error_detail_default_path_is_empty_list(self) -> None:
+        from adapters.inbound.rest.schemas import ErrorDetail
+
+        e = ErrorDetail(message="bad input")
+        assert e.path == []
+
+    def test_error_detail_with_path(self) -> None:
+        from adapters.inbound.rest.schemas import ErrorDetail
+
+        e = ErrorDetail(message="required", path=["body", "text"])
+        assert e.path == ["body", "text"]
+
+    def test_error_detail_serializes_to_dict(self) -> None:
+        from adapters.inbound.rest.schemas import ErrorDetail
+
+        e = ErrorDetail(message="x", path=["a", 0])
+        d = e.model_dump()
+        assert d == {"message": "x", "path": ["a", 0]}
+
+    def test_error_response_errors_field(self) -> None:
+        from adapters.inbound.rest.schemas import ErrorDetail, ErrorResponse
+
+        r = ErrorResponse(errors=[ErrorDetail(message="fail")])
+        assert len(r.errors) == 1
+        assert r.errors[0].message == "fail"
+
+    def test_error_response_serializes(self) -> None:
+        from adapters.inbound.rest.schemas import ErrorDetail, ErrorResponse
+
+        r = ErrorResponse(errors=[ErrorDetail(message="x")])
+        d = r.model_dump()
+        assert "errors" in d
+        assert d["errors"][0]["message"] == "x"
+
+    def test_error_response_multiple_errors(self) -> None:
+        from adapters.inbound.rest.schemas import ErrorDetail, ErrorResponse
+
+        r = ErrorResponse(
+            errors=[
+                ErrorDetail(message="field a", path=["body", "a"]),
+                ErrorDetail(message="field b", path=["body", "b"]),
+            ]
+        )
+        assert len(r.errors) == 2

@@ -1,5 +1,5 @@
 """
-src/chatterbox_explorer/adapters/primary/gradio/ui.py
+src/adapters/primary/gradio/ui.py
 ======================================================
 Gradio UI for the Chatterbox TTS Explorer.
 
@@ -23,21 +23,21 @@ from __future__ import annotations
 
 import gradio as gr
 
-from chatterbox_explorer.adapters.primary.gradio.handlers import GradioHandlers
-from chatterbox_explorer.domain.languages import (
+from adapters.primary.gradio.handlers import GradioHandlers
+from domain.languages import (
     LANGUAGE_AUDIO_DEFAULTS,
     LANGUAGE_OPTIONS,
     PARA_TAGS,
     SAMPLE_TEXTS,
 )
-from chatterbox_explorer.domain.models import AppConfig
-from chatterbox_explorer.domain.presets import (
+from domain.models import AppConfig
+from domain.presets import (
     PRESET_TTS_NAMES,
     PRESET_TURBO_NAMES,
     PRESETS_TTS,
     PRESETS_TURBO,
 )
-from chatterbox_explorer.ports.input import (
+from ports.input import (
     IModelManagerService,
     IMultilingualTTSService,
     ITTSService,

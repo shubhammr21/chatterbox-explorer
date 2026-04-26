@@ -1,5 +1,5 @@
 """
-src/chatterbox_explorer/logging_config.py
+src/logging_config.py
 ==========================================
 Logging and warning configuration for the Chatterbox TTS Explorer.
 

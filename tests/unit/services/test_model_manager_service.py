@@ -16,8 +16,8 @@ from __future__ import annotations
 
 import pytest
 
-from chatterbox_explorer.domain.models import MemoryStats, ModelStatus
-from chatterbox_explorer.services.model_manager import ModelManagerService
+from domain.models import MemoryStats, ModelStatus
+from services.model_manager import ModelManagerService
 
 
 # ──────────────────────────────────────────────────────────────────────────────

@@ -1,7 +1,7 @@
 """PerTh watermark detection adapter."""
 import logging
 
-from chatterbox_explorer.ports.output import IWatermarkDetector
+from ports.output import IWatermarkDetector
 
 log = logging.getLogger(__name__)
 

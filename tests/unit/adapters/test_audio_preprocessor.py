@@ -27,8 +27,8 @@ import pytest
 torch = pytest.importorskip("torch", reason="torch required for audio adapter tests")
 torchaudio = pytest.importorskip("torchaudio", reason="torchaudio required for audio adapter tests")
 
-from chatterbox_explorer.adapters.secondary.audio import TorchAudioPreprocessor, to_gradio_audio
-from chatterbox_explorer.domain.models import AudioResult
+from adapters.secondary.audio import TorchAudioPreprocessor, to_gradio_audio
+from domain.models import AudioResult
 
 
 # ──────────────────────────────────────────────────────────────────────────────

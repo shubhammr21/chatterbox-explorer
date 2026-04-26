@@ -12,8 +12,8 @@ from __future__ import annotations
 
 import pytest
 
-from chatterbox_explorer.domain.models import WatermarkResult
-from chatterbox_explorer.services.watermark import WatermarkService
+from domain.models import WatermarkResult
+from services.watermark import WatermarkService
 
 
 # ──────────────────────────────────────────────────────────────────────────────

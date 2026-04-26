@@ -22,7 +22,7 @@ Nothing else belongs here.  All application logic lives in:
     src/chatterbox_explorer/
 """
 
-from chatterbox_explorer.cli import main
+from cli import main
 
 if __name__ == "__main__":
     main()

@@ -1,5 +1,5 @@
 """
-src/chatterbox_explorer/adapters/secondary/model_loader.py
+src/adapters/secondary/model_loader.py
 ============================================================
 Secondary adapter: wraps lazy model loading, HuggingFace downloads,
 disk-cache probing, and memory unloading behind the IModelRepository port.
@@ -17,7 +17,7 @@ import logging
 import os
 from typing import Iterator
 
-from chatterbox_explorer.ports.output import IModelRepository
+from ports.output import IModelRepository
 
 log = logging.getLogger(__name__)
 

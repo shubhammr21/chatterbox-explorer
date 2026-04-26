@@ -13,13 +13,13 @@ from __future__ import annotations
 import pytest
 from unittest.mock import MagicMock
 
-from chatterbox_explorer.domain.models import (
+from domain.models import (
     AudioResult,
     MultilingualTTSRequest,
     TTSRequest,
     TurboTTSRequest,
 )
-from chatterbox_explorer.services.tts import (
+from services.tts import (
     MultilingualTTSService,
     TTSService,
     TurboTTSService,

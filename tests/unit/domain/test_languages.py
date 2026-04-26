@@ -1,7 +1,7 @@
 """
 tests/unit/domain/test_languages.py
 =====================================
-TDD — RED phase: tests for chatterbox_explorer.domain.languages
+TDD — RED phase: tests for domain.languages
 
 Run before implementation exists → all tests must FAIL initially.
 Run after implementation → all tests must PASS.
@@ -16,7 +16,7 @@ import re
 
 import pytest
 
-from chatterbox_explorer.domain.languages import (
+from domain.languages import (
     LANGUAGE_AUDIO_DEFAULTS,
     LANGUAGE_OPTIONS,
     PARA_TAGS,
@@ -306,7 +306,7 @@ def test_languages_module_has_no_torch_import():
     import importlib
     import sys
 
-    mod_name = "chatterbox_explorer.domain.languages"
+    mod_name = "domain.languages"
     mod = sys.modules.get(mod_name) or importlib.import_module(mod_name)
     assert "torch" not in vars(mod), (
         "languages.py must not import torch"
@@ -318,7 +318,7 @@ def test_languages_module_has_no_gradio_import():
     import importlib
     import sys
 
-    mod_name = "chatterbox_explorer.domain.languages"
+    mod_name = "domain.languages"
     mod = sys.modules.get(mod_name) or importlib.import_module(mod_name)
     assert "gradio" not in vars(mod), (
         "languages.py must not import gradio"

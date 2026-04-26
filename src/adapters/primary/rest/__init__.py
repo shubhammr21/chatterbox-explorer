@@ -7,7 +7,7 @@ To add the REST API:
 Then implement routes.py and schemas.py in this package.
 
 Entry point would be:
-    uv run uvicorn chatterbox_explorer.adapters.primary.rest.app:app
+    uv run uvicorn adapters.primary.rest.app:app
 
 The services accept the same domain models (TTSRequest, etc.) used by
 the Gradio adapter — no domain changes required when adding REST.

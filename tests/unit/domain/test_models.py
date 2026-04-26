@@ -1,7 +1,7 @@
 """
 tests/unit/domain/test_models.py
 =================================
-TDD — RED phase: tests for chatterbox_explorer.domain.models
+TDD — RED phase: tests for domain.models
 
 Run before implementation exists → all tests must FAIL initially.
 Run after implementation → all tests must PASS.
@@ -15,7 +15,7 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from chatterbox_explorer.domain.models import (
+from domain.models import (
     AppConfig,
     AudioResult,
     MemoryStats,
@@ -431,7 +431,7 @@ def test_domain_models_module_has_no_torch_import():
     import sys
 
     # Remove cached module if already imported so we can inspect fresh
-    mod_name = "chatterbox_explorer.domain.models"
+    mod_name = "domain.models"
     mod = sys.modules.get(mod_name)
     if mod is None:
         mod = importlib.import_module(mod_name)
@@ -447,7 +447,7 @@ def test_domain_models_module_has_no_gradio_import():
     import importlib
     import sys
 
-    mod_name = "chatterbox_explorer.domain.models"
+    mod_name = "domain.models"
     mod = sys.modules.get(mod_name) or importlib.import_module(mod_name)
     assert "gradio" not in vars(mod), (
         "models.py must not import gradio — domain layer must be framework-free"

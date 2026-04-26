@@ -12,8 +12,8 @@ from __future__ import annotations
 
 import pytest
 
-from chatterbox_explorer.domain.models import AudioResult, VoiceConversionRequest
-from chatterbox_explorer.services.voice_conversion import VoiceConversionService
+from domain.models import AudioResult, VoiceConversionRequest
+from services.voice_conversion import VoiceConversionService
 
 
 # ──────────────────────────────────────────────────────────────────────────────

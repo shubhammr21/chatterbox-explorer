@@ -88,7 +88,7 @@ def main(argv: list[str] | None = None) -> None:
     # ── Step 2a: logging + warning suppression ────────────────────────────────
     # Must happen before any library import that calls logging.getLogger or
     # warnings.warn at import time (huggingface_hub, transformers, diffusers).
-    from chatterbox_explorer.logging_config import configure  # noqa: PLC0415
+    from logging_config import configure  # noqa: PLC0415
 
     configure()
 
@@ -150,7 +150,7 @@ def main(argv: list[str] | None = None) -> None:
         log.info("No-op PerTh watermarker installed ✓ — models will load correctly.")
 
     # ── Step 3: bootstrap ─────────────────────────────────────────────────────
-    from chatterbox_explorer.bootstrap import build_app  # noqa: PLC0415
+    from bootstrap import build_app  # noqa: PLC0415
 
     demo, _config = build_app(watermark_available=watermark_available)
 
@@ -163,7 +163,7 @@ def main(argv: list[str] | None = None) -> None:
     atexit.register(demo.close)
 
     # ── Step 5: launch ────────────────────────────────────────────────────────
-    from chatterbox_explorer.adapters.primary.gradio.ui import (  # noqa: PLC0415
+    from adapters.primary.gradio.ui import (  # noqa: PLC0415
         GRADIO_CSS,
         GRADIO_THEME,
     )

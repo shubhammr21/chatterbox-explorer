@@ -3,8 +3,8 @@ import logging
 import time
 from typing import ClassVar
 
-from chatterbox_explorer.domain.models import MemoryStats
-from chatterbox_explorer.ports.output import IMemoryMonitor
+from domain.models import MemoryStats
+from ports.output import IMemoryMonitor
 
 log = logging.getLogger(__name__)
 

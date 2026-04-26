@@ -1,7 +1,7 @@
 """
 tests/unit/domain/test_presets.py
 ===================================
-TDD — RED phase: tests for chatterbox_explorer.domain.presets
+TDD — RED phase: tests for domain.presets
 
 Run before implementation exists → all tests must FAIL initially.
 Run after implementation → all tests must PASS.
@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import pytest
 
-from chatterbox_explorer.domain.presets import (
+from domain.presets import (
     PRESET_TTS_NAMES,
     PRESET_TURBO_NAMES,
     PRESETS_TTS,
@@ -496,7 +496,7 @@ def test_presets_module_has_no_torch_import():
     import importlib
     import sys
 
-    mod_name = "chatterbox_explorer.domain.presets"
+    mod_name = "domain.presets"
     mod = sys.modules.get(mod_name) or importlib.import_module(mod_name)
     assert "torch" not in vars(mod), "presets.py must not import torch"
 
@@ -506,7 +506,7 @@ def test_presets_module_has_no_gradio_import():
     import importlib
     import sys
 
-    mod_name = "chatterbox_explorer.domain.presets"
+    mod_name = "domain.presets"
     mod = sys.modules.get(mod_name) or importlib.import_module(mod_name)
     assert "gradio" not in vars(mod), "presets.py must not import gradio"
 
@@ -516,6 +516,6 @@ def test_presets_module_has_no_chatterbox_import():
     import importlib
     import sys
 
-    mod_name = "chatterbox_explorer.domain.presets"
+    mod_name = "domain.presets"
     mod = sys.modules.get(mod_name) or importlib.import_module(mod_name)
     assert "chatterbox" not in vars(mod), "presets.py must not import chatterbox"

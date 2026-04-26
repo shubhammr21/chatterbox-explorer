@@ -21,13 +21,13 @@ from typing import Callable, Iterator
 
 import numpy as np
 
-from chatterbox_explorer.domain.models import (
+from domain.models import (
     AudioResult,
     MultilingualTTSRequest,
     TTSRequest,
     TurboTTSRequest,
 )
-from chatterbox_explorer.ports.output import IAudioPreprocessor, IModelRepository
+from ports.output import IAudioPreprocessor, IModelRepository
 
 
 # ──────────────────────────────────────────────────────────────────────────────

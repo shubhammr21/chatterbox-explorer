@@ -1,5 +1,5 @@
 """
-src/chatterbox_explorer/adapters/primary/rest/routes.py
+src/adapters/primary/rest/routes.py
 ========================================================
 FastAPI REST routes — stub showing where to add REST endpoints.
 
@@ -51,7 +51,7 @@ from __future__ import annotations
 
 # from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, status
 # from fastapi.responses import StreamingResponse, JSONResponse
-# from chatterbox_explorer.domain.models import (
+# from domain.models import (
 #     TTSRequest,
 #     TurboTTSRequest,
 #     MultilingualTTSRequest,
@@ -59,7 +59,7 @@ from __future__ import annotations
 #     AudioResult,
 #     WatermarkResult,
 # )
-# from chatterbox_explorer.ports.input import (
+# from ports.input import (
 #     ITTSService,
 #     ITurboTTSService,
 #     IMultilingualTTSService,

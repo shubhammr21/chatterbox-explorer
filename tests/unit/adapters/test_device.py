@@ -23,7 +23,7 @@ import pytest
 # isn't (e.g. a stripped CI environment).
 torch = pytest.importorskip("torch", reason="torch required for device adapter tests")
 
-from chatterbox_explorer.adapters.secondary.device import detect_device, set_seed
+from adapters.secondary.device import detect_device, set_seed
 
 
 # ──────────────────────────────────────────────────────────────────────────────

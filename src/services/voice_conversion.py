@@ -11,8 +11,8 @@ from __future__ import annotations
 
 import numpy as np
 
-from chatterbox_explorer.domain.models import AudioResult, VoiceConversionRequest
-from chatterbox_explorer.ports.output import IAudioPreprocessor, IModelRepository
+from domain.models import AudioResult, VoiceConversionRequest
+from ports.output import IAudioPreprocessor, IModelRepository
 
 
 class VoiceConversionService:

@@ -16,8 +16,8 @@ Verdict thresholds (mirrors app.py logic):
 """
 from __future__ import annotations
 
-from chatterbox_explorer.domain.models import WatermarkResult
-from chatterbox_explorer.ports.output import IWatermarkDetector
+from domain.models import WatermarkResult
+from ports.output import IWatermarkDetector
 
 
 class WatermarkService:

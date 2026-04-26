@@ -23,13 +23,13 @@ try:
 except ImportError:
     HAS_TORCH = False
 
-from chatterbox_explorer.ports.output import (
+from ports.output import (
     IAudioPreprocessor,
     IMemoryMonitor,
     IModelRepository,
     IWatermarkDetector,
 )
-from chatterbox_explorer.domain.models import MemoryStats
+from domain.models import MemoryStats
 
 
 # ──────────────────────────────────────────────────────────────────────────────

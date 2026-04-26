@@ -13,8 +13,8 @@ from __future__ import annotations
 
 from typing import Iterator
 
-from chatterbox_explorer.domain.models import MemoryStats, ModelStatus
-from chatterbox_explorer.ports.output import IMemoryMonitor, IModelRepository
+from domain.models import MemoryStats, ModelStatus
+from ports.output import IMemoryMonitor, IModelRepository
 
 
 class ModelManagerService:

@@ -1,5 +1,5 @@
 """
-src/chatterbox_explorer/bootstrap.py
+src/bootstrap.py
 ======================================
 Dependency-injection root — creates and wires all secondary adapters,
 domain services, and the primary (Gradio) adapter into a single runnable app.
@@ -31,7 +31,7 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     import gradio as gr
 
-    from chatterbox_explorer.domain.models import AppConfig
+    from domain.models import AppConfig
 
 
 def build_app(watermark_available: bool) -> "tuple[gr.Blocks, AppConfig]":
@@ -62,24 +62,24 @@ def build_app(watermark_available: bool) -> "tuple[gr.Blocks, AppConfig]":
         :class:`~chatterbox_explorer.domain.models.AppConfig`.
     """
     # ── Secondary adapters (infrastructure layer) ──────────────────────────
-    from chatterbox_explorer.adapters.secondary.device import detect_device, set_seed
-    from chatterbox_explorer.adapters.secondary.model_loader import ChatterboxModelLoader
-    from chatterbox_explorer.adapters.secondary.audio import TorchAudioPreprocessor
-    from chatterbox_explorer.adapters.secondary.memory import PsutilMemoryMonitor
-    from chatterbox_explorer.adapters.secondary.watermark import PerThWatermarkDetector
+    from adapters.secondary.device import detect_device, set_seed
+    from adapters.secondary.model_loader import ChatterboxModelLoader
+    from adapters.secondary.audio import TorchAudioPreprocessor
+    from adapters.secondary.memory import PsutilMemoryMonitor
+    from adapters.secondary.watermark import PerThWatermarkDetector
 
     # ── Domain services ────────────────────────────────────────────────────
-    from chatterbox_explorer.services.tts import (
+    from services.tts import (
         TTSService,
         TurboTTSService,
         MultilingualTTSService,
     )
-    from chatterbox_explorer.services.voice_conversion import VoiceConversionService
-    from chatterbox_explorer.services.model_manager import ModelManagerService
-    from chatterbox_explorer.services.watermark import WatermarkService
+    from services.voice_conversion import VoiceConversionService
+    from services.model_manager import ModelManagerService
+    from services.watermark import WatermarkService
 
     # ── Domain models ──────────────────────────────────────────────────────
-    from chatterbox_explorer.domain.models import AppConfig
+    from domain.models import AppConfig
 
     # ── Step 1: device detection ───────────────────────────────────────────
     device = detect_device()
@@ -106,7 +106,7 @@ def build_app(watermark_available: bool) -> "tuple[gr.Blocks, AppConfig]":
     # ── Step 5: primary adapter — Gradio UI ───────────────────────────────
     # Imported last so that all compat patches are active before any
     # Gradio component or chatterbox model code is touched.
-    from chatterbox_explorer.adapters.primary.gradio.ui import build_demo  # noqa: PLC0415
+    from adapters.primary.gradio.ui import build_demo  # noqa: PLC0415
 
     demo = build_demo(
         tts=tts_svc,

@@ -5,8 +5,8 @@ from pathlib import Path
 
 import numpy as np
 
-from chatterbox_explorer.domain.models import AudioResult
-from chatterbox_explorer.ports.output import IAudioPreprocessor
+from domain.models import AudioResult
+from ports.output import IAudioPreprocessor
 
 log = logging.getLogger(__name__)
 

@@ -54,23 +54,17 @@
   - maintainability
 
 - DOCUMENT improvements in NOTES.md or propose in PLAN.md
-
 - PREFER simplicity over unnecessary abstraction or dependencies
 
 ## Quality & Delivery Rules
 
 - ALWAYS review and refine code after implementation
+- ALWAYS research to get best use case of approach
 - EXPECT first solution to be imperfect; iterate
-
 - DEFINE testing strategy during planning
 - WRITE tests for critical logic and edge cases
-
 - USE version control with clear and meaningful commits
-
 - IDENTIFY risks and failure scenarios early
-
 - DO NOT over-engineer; prefer simple and effective solutions
-
 - COMMUNICATE decisions, trade-offs, and reasoning clearly
-
 - USE small prototypes when uncertainty cannot be resolved through research

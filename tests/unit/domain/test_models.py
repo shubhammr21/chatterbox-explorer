@@ -1,14 +1,11 @@
 """
 tests/unit/domain/test_models.py
 =================================
-TDD — RED phase: tests for domain.models
-
-Run before implementation exists → all tests must FAIL initially.
-Run after implementation → all tests must PASS.
+TDD unit tests for domain.models.
 
 Rules:
 - No torch, gradio, chatterbox, psutil, or huggingface_hub imports.
-- Pure dataclass behaviour only.
+- Tests cover both concrete model behaviour and the inheritance hierarchy.
 """
 
 from __future__ import annotations
@@ -32,6 +29,185 @@ from domain.models import (
     VoiceConversionRequest,
     WatermarkResult,
 )
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Hierarchy contract tests  (RED until domain/models.py introduces base classes)
+# ──────────────────────────────────────────────────────────────────────────────
+
+
+class TestDomainModelHierarchy:
+    """Every domain model must inherit from DomainModel.
+
+    DomainModel is a shared frozen base that eliminates the repeated
+    ``model_config = ConfigDict(frozen=True)`` declaration from every class.
+    """
+
+    def test_domain_model_exists(self) -> None:
+        from pydantic import BaseModel
+
+        from domain.models import DomainModel
+
+        assert issubclass(DomainModel, BaseModel)
+
+    def test_domain_model_is_frozen(self) -> None:
+        """DomainModel itself must be frozen."""
+        from pydantic import ValidationError
+
+        from domain.models import DomainModel
+
+        class _Concrete(DomainModel):
+            x: int = 0
+
+        obj = _Concrete()
+        with pytest.raises(ValidationError):
+            obj.x = 1  # type: ignore[misc]
+
+    def test_all_concrete_models_are_domain_model_subclasses(self) -> None:
+        from domain.models import (
+            AppConfig,
+            AudioResult,
+            DomainModel,
+            MemoryStats,
+            ModelStatus,
+            MultilingualTTSRequest,
+            TTSRequest,
+            TurboTTSRequest,
+            VoiceConversionRequest,
+            WatermarkResult,
+        )
+
+        for cls in (
+            TTSRequest,
+            TurboTTSRequest,
+            MultilingualTTSRequest,
+            VoiceConversionRequest,
+            AudioResult,
+            ModelStatus,
+            MemoryStats,
+            WatermarkResult,
+            AppConfig,
+        ):
+            assert issubclass(cls, DomainModel), f"{cls.__name__} must inherit from DomainModel"
+
+
+class TestBaseTTSRequestHierarchy:
+    """All three TTS request models share text, ref_audio_path, seed, streaming
+    through BaseTTSRequest.
+    """
+
+    def test_base_tts_request_exists(self) -> None:
+        from domain.models import BaseTTSRequest, DomainModel
+
+        assert issubclass(BaseTTSRequest, DomainModel)
+
+    def test_tts_request_inherits_base(self) -> None:
+        from domain.models import BaseTTSRequest, TTSRequest
+
+        assert issubclass(TTSRequest, BaseTTSRequest)
+
+    def test_turbo_tts_request_inherits_base(self) -> None:
+        from domain.models import BaseTTSRequest, TurboTTSRequest
+
+        assert issubclass(TurboTTSRequest, BaseTTSRequest)
+
+    def test_multilingual_tts_request_inherits_base(self) -> None:
+        from domain.models import BaseTTSRequest, MultilingualTTSRequest
+
+        assert issubclass(MultilingualTTSRequest, BaseTTSRequest)
+
+    def test_base_fields_present_on_tts_request(self) -> None:
+        req = TTSRequest(text="hello")
+        assert req.text == "hello"
+        assert req.ref_audio_path is None
+        assert req.seed == 0
+        assert req.streaming is False
+
+    def test_base_fields_present_on_turbo_request(self) -> None:
+        from domain.models import TurboTTSRequest
+
+        req = TurboTTSRequest(text="hello")
+        assert req.text == "hello"
+        assert req.ref_audio_path is None
+        assert req.seed == 0
+        assert req.streaming is False
+
+    def test_base_fields_present_on_multilingual_request(self) -> None:
+        from domain.models import MultilingualTTSRequest
+
+        req = MultilingualTTSRequest(text="hello")
+        assert req.text == "hello"
+        assert req.ref_audio_path is None
+        assert req.seed == 0
+        assert req.streaming is False
+
+
+class TestStandardSamplingRequestHierarchy:
+    """TTSRequest and MultilingualTTSRequest share exaggeration, cfg_weight,
+    temperature, min_p, and top_p through StandardSamplingRequest.
+    TurboTTSRequest must NOT inherit StandardSamplingRequest.
+    """
+
+    def test_standard_sampling_request_exists(self) -> None:
+        from domain.models import BaseTTSRequest, StandardSamplingRequest
+
+        assert issubclass(StandardSamplingRequest, BaseTTSRequest)
+
+    def test_tts_request_inherits_standard_sampling(self) -> None:
+        from domain.models import StandardSamplingRequest, TTSRequest
+
+        assert issubclass(TTSRequest, StandardSamplingRequest)
+
+    def test_multilingual_inherits_standard_sampling(self) -> None:
+        from domain.models import MultilingualTTSRequest, StandardSamplingRequest
+
+        assert issubclass(MultilingualTTSRequest, StandardSamplingRequest)
+
+    def test_turbo_does_not_inherit_standard_sampling(self) -> None:
+        """Turbo lacks exaggeration/cfg_weight — it must not inherit StandardSamplingRequest."""
+        from domain.models import StandardSamplingRequest, TurboTTSRequest
+
+        assert not issubclass(TurboTTSRequest, StandardSamplingRequest)
+
+    def test_standard_sampling_fields_on_tts_request(self) -> None:
+        req = TTSRequest(text="hello")
+        assert req.exaggeration == pytest.approx(0.5)
+        assert req.cfg_weight == pytest.approx(0.5)
+        assert req.temperature == pytest.approx(0.8)
+        assert req.min_p == pytest.approx(0.05)
+        assert req.top_p == pytest.approx(1.0)
+
+    def test_standard_sampling_fields_on_multilingual_request(self) -> None:
+        from domain.models import MultilingualTTSRequest
+
+        req = MultilingualTTSRequest(text="hello")
+        assert req.exaggeration == pytest.approx(0.5)
+        assert req.cfg_weight == pytest.approx(0.5)
+        assert req.temperature == pytest.approx(0.8)
+        assert req.min_p == pytest.approx(0.05)
+        assert req.top_p == pytest.approx(1.0)
+
+    def test_turbo_has_no_exaggeration_field(self) -> None:
+        from domain.models import TurboTTSRequest
+
+        req = TurboTTSRequest(text="hello")
+        assert not hasattr(req, "exaggeration")
+        assert not hasattr(req, "cfg_weight")
+
+    def test_multilingual_overrides_rep_penalty_default(self) -> None:
+        """Multilingual needs rep_penalty=2.0 (not the 1.2 from StandardSamplingRequest)."""
+        from domain.models import MultilingualTTSRequest, StandardSamplingRequest
+
+        req = MultilingualTTSRequest(text="hello")
+        assert req.rep_penalty == pytest.approx(2.0)
+        # Confirm the base default is different
+        base_default = StandardSamplingRequest.model_fields["rep_penalty"].default
+        assert base_default == pytest.approx(1.2)
+
+    def test_standard_sampling_rep_penalty_default_is_1_2(self) -> None:
+        from domain.models import StandardSamplingRequest
+
+        assert StandardSamplingRequest.model_fields["rep_penalty"].default == pytest.approx(1.2)
+
 
 # ──────────────────────────────────────────────────────────────────────────────
 # TTSRequest

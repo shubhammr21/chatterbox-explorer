@@ -1,5 +1,54 @@
 # NOTES
 
+## Manual Patches (re-apply after `uv sync`)
+
+### resemble-perth — `pkg_resources` → `importlib.resources`
+
+**File:** `.venv/lib/python3.13/site-packages/perth/perth_net/__init__.py`
+
+**Why:** `resemble-perth 1.0.x` uses the deprecated `pkg_resources.resource_filename()`
+to locate bundled model weights. `setuptools >= 81` emits a `UserWarning` on every
+`pkg_resources` import because the package is scheduled for removal.
+
+**Research findings:**
+- `resemble-perth 1.0.1` (latest as of 2025) does **not** fix this — byte-for-byte
+  identical to 1.0.0
+- Official guidance: migrate to `importlib.resources` (stdlib, Python 3.9+)
+- The warning explicitly says "fix it or pin Setuptools<81" — suppression is not recommended
+- Root cause is confirmed fixable with a 2-line change
+
+**Patch (replace the first 2 lines):**
+
+```python
+# BEFORE (broken — pkg_resources deprecated in setuptools >= 81):
+from pkg_resources import resource_filename
+PREPACKAGED_MODELS_DIR = resource_filename(__name__, "pretrained")
+
+# AFTER (correct — importlib.resources, stdlib Python 3.9+):
+import importlib.resources
+PREPACKAGED_MODELS_DIR = str(importlib.resources.files(__name__).joinpath("pretrained"))
+```
+
+**Re-apply command after `uv sync`:**
+
+```bash
+cat > .venv/lib/python3.13/site-packages/perth/perth_net/__init__.py << 'EOF'
+# Patched: replaced pkg_resources.resource_filename (deprecated, setuptools>=81)
+# with importlib.resources.files() (stdlib, Python 3.9+).
+# Root cause: resemble-perth 1.0.1 still uses pkg_resources.
+# Fix: https://importlib-resources.readthedocs.io/en/latest/migration.html
+import importlib.resources
+
+PREPACKAGED_MODELS_DIR = str(importlib.resources.files(__name__).joinpath("pretrained"))
+
+from .perth_net_implicit.perth_watermarker import PerthImplicitWatermarker
+EOF
+```
+
+**Track upstream fix:** https://github.com/resemble-ai/Perth/issues
+
+---
+
 ## Learnings
 
 ### Chatterbox Model Loading

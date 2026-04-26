@@ -170,8 +170,6 @@ def build_demo(
 
     with gr.Blocks(
         title="Chatterbox TTS Explorer",
-        theme=GRADIO_THEME,
-        css=GRADIO_CSS,
     ) as demo:
         # ── Header ────────────────────────────────────────────────────────────
         gr.Markdown(

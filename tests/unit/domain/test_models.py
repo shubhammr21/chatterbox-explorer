@@ -87,11 +87,11 @@ class TestTTSRequest:
         req = TTSRequest(text="Seed check")
         assert req.seed == 0
 
-    def test_is_dataclass_instance(self):
-        import dataclasses
+    def test_is_pydantic_model(self):
+        from pydantic import BaseModel
 
         req = TTSRequest(text="Dataclass check")
-        assert dataclasses.is_dataclass(req)
+        assert isinstance(req, BaseModel)
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -143,11 +143,11 @@ class TestTurboTTSRequest:
         assert req.seed == 7
         assert req.streaming is True
 
-    def test_is_dataclass_instance(self):
-        import dataclasses
+    def test_is_pydantic_model(self):
+        from pydantic import BaseModel
 
         req = TurboTTSRequest(text="Dataclass check")
-        assert dataclasses.is_dataclass(req)
+        assert isinstance(req, BaseModel)
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -183,11 +183,11 @@ class TestMultilingualTTSRequest:
         req = MultilingualTTSRequest(text="Hallo", language="de")
         assert req.language == "de"
 
-    def test_is_dataclass_instance(self):
-        import dataclasses
+    def test_is_pydantic_model(self):
+        from pydantic import BaseModel
 
         req = MultilingualTTSRequest(text="ML dataclass")
-        assert dataclasses.is_dataclass(req)
+        assert isinstance(req, BaseModel)
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -206,19 +206,17 @@ class TestVoiceConversionRequest:
 
     def test_no_optional_fields(self):
         """VoiceConversionRequest has no optional parameters — both paths are mandatory."""
-        import dataclasses
-
-        fields = {f.name for f in dataclasses.fields(VoiceConversionRequest)}
+        fields = set(VoiceConversionRequest.model_fields.keys())
         assert fields == {"source_audio_path", "target_voice_path"}
 
-    def test_is_dataclass_instance(self):
-        import dataclasses
+    def test_is_pydantic_model(self):
+        from pydantic import BaseModel
 
         req = VoiceConversionRequest(
             source_audio_path="/a.wav",
             target_voice_path="/b.wav",
         )
-        assert dataclasses.is_dataclass(req)
+        assert isinstance(req, BaseModel)
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -263,11 +261,11 @@ class TestAudioResult:
         result = AudioResult(sample_rate=44100, samples=samples)
         assert result.duration_s == pytest.approx(1.0)
 
-    def test_is_dataclass_instance(self):
-        import dataclasses
+    def test_is_pydantic_model(self):
+        from pydantic import BaseModel
 
         result = AudioResult(sample_rate=16000, samples=np.zeros(100, dtype=np.float32))
-        assert dataclasses.is_dataclass(result)
+        assert isinstance(result, BaseModel)
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -296,8 +294,8 @@ class TestModelStatus:
         assert status.in_memory is False
         assert status.on_disk is True
 
-    def test_is_dataclass_instance(self):
-        import dataclasses
+    def test_is_pydantic_model(self):
+        from pydantic import BaseModel
 
         s = ModelStatus(
             key="vc",
@@ -309,7 +307,7 @@ class TestModelStatus:
             in_memory=False,
             on_disk=False,
         )
-        assert dataclasses.is_dataclass(s)
+        assert isinstance(s, BaseModel)
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -368,8 +366,8 @@ class TestMemoryStats:
         assert stats.device_driver_gb == pytest.approx(4.5)
         assert stats.device_max_gb == pytest.approx(16.0)
 
-    def test_is_dataclass_instance(self):
-        import dataclasses
+    def test_is_pydantic_model(self):
+        from pydantic import BaseModel
 
         stats = MemoryStats(
             sys_total_gb=8.0,
@@ -378,7 +376,7 @@ class TestMemoryStats:
             sys_percent=50.0,
             proc_rss_gb=0.5,
         )
-        assert dataclasses.is_dataclass(stats)
+        assert isinstance(stats, BaseModel)
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -427,8 +425,8 @@ class TestWatermarkResult:
         assert result.available is False
         assert result.verdict == "unavailable"
 
-    def test_is_dataclass_instance(self):
-        import dataclasses
+    def test_is_pydantic_model(self):
+        from pydantic import BaseModel
 
         result = WatermarkResult(
             score=0.0,
@@ -436,7 +434,7 @@ class TestWatermarkResult:
             message="",
             available=False,
         )
-        assert dataclasses.is_dataclass(result)
+        assert isinstance(result, BaseModel)
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -459,11 +457,11 @@ class TestAppConfig:
         cfg = AppConfig(device="mps", watermark_available=False)
         assert cfg.device == "mps"
 
-    def test_is_dataclass_instance(self):
-        import dataclasses
+    def test_is_pydantic_model(self):
+        from pydantic import BaseModel
 
         cfg = AppConfig(device="cpu", watermark_available=False)
-        assert dataclasses.is_dataclass(cfg)
+        assert isinstance(cfg, BaseModel)
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -498,3 +496,87 @@ def test_domain_models_module_has_no_gradio_import():
     assert "gradio" not in vars(mod), (
         "models.py must not import gradio — domain layer must be framework-free"
     )
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Pydantic BaseModel behaviour (RED phase — fails on stdlib @dataclass)
+# ──────────────────────────────────────────────────────────────────────────────
+
+
+class TestPydanticModelBehavior:
+    """New behavior tests valid only after migration to pydantic BaseModel."""
+
+    def test_tts_request_is_pydantic_model(self) -> None:
+        from pydantic import BaseModel
+
+        assert issubclass(TTSRequest, BaseModel)
+
+    def test_tts_request_is_frozen(self) -> None:
+        from pydantic import ValidationError
+
+        req = TTSRequest(text="Hello")
+        with pytest.raises(ValidationError):
+            req.text = "mutation"  # type: ignore[misc]
+
+    def test_tts_request_model_copy(self) -> None:
+        req = TTSRequest(text="Hello")
+        copy = req.model_copy(update={"text": "World"})
+        assert copy.text == "World"
+        assert req.text == "Hello"
+
+    def test_audio_result_duration_s_in_model_dump(self) -> None:
+        """computed_field must appear in model_dump() output."""
+        result = AudioResult(
+            sample_rate=24000,
+            samples=np.zeros(24000, dtype=np.float32),
+        )
+        d = result.model_dump()
+        assert "duration_s" in d
+        assert d["duration_s"] == pytest.approx(1.0)
+
+    def test_audio_result_is_frozen(self) -> None:
+        from pydantic import ValidationError
+
+        result = AudioResult(
+            sample_rate=24000,
+            samples=np.zeros(24000, dtype=np.float32),
+        )
+        with pytest.raises(ValidationError):
+            result.sample_rate = 48000  # type: ignore[misc]
+
+    def test_watermark_result_invalid_verdict_raises(self) -> None:
+        """Pydantic validates Literal fields at construction time."""
+        from pydantic import ValidationError
+
+        bad_data = {
+            "score": 0.9,
+            "verdict": "not_a_real_verdict",
+            "message": "test",
+            "available": True,
+        }
+        with pytest.raises(ValidationError):
+            WatermarkResult.model_validate(bad_data)
+
+    def test_app_config_invalid_device_raises(self) -> None:
+        """Pydantic validates DeviceType Literal at construction time."""
+        from pydantic import ValidationError
+
+        bad_data = {"device": "gpu", "watermark_available": False}
+        with pytest.raises(ValidationError):
+            AppConfig.model_validate(bad_data)
+
+    def test_model_status_is_frozen(self) -> None:
+        from pydantic import ValidationError
+
+        status = ModelStatus(
+            key="tts",
+            display_name="Standard TTS",
+            class_name="ChatterboxTTS",
+            description="desc",
+            params="500M",
+            size_gb=1.4,
+            in_memory=False,
+            on_disk=True,
+        )
+        with pytest.raises(ValidationError):
+            status.key = "turbo"  # type: ignore[misc]

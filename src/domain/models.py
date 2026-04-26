@@ -1,44 +1,36 @@
 """
 src/domain/models.py
 =====================
-Pure domain dataclasses — zero framework dependencies.
+Pure domain models — pydantic BaseModel, zero framework dependencies.
 
-Allowed imports: stdlib (dataclasses, typing) only at runtime.
-numpy and domain.types are type-annotation-only and live in TYPE_CHECKING.
-This keeps the domain layer zero-runtime-dependency — importing this module
-never pulls in any third-party package.
-Forbidden at runtime: torch, gradio, chatterbox, psutil, huggingface_hub,
-numpy — any of these appearing outside TYPE_CHECKING is an architecture violation.
+Allowed imports at runtime: pydantic, numpy, domain.types, and stdlib.
+Pydantic needs numpy available at runtime for arbitrary_types_allowed,
+and needs domain.types Literal definitions available at runtime so that
+Literal fields (DeviceType, LanguageCode, etc.) are validated at
+construction time.
+
+Forbidden at runtime: torch, gradio, chatterbox, psutil, huggingface_hub
+— any of these appearing outside TYPE_CHECKING is an architecture violation.
 """
 
-from __future__ import annotations
+import numpy as np
+from pydantic import BaseModel, ConfigDict, computed_field
 
-from dataclasses import dataclass
-from typing import TYPE_CHECKING
-
-if TYPE_CHECKING:
-    # numpy and domain.types are only referenced in field type annotations.
-    # With PEP 563 (from __future__ import annotations), all annotations are
-    # stored as strings and never evaluated at runtime, so these imports are
-    # never needed outside of a type-checking pass.
-    # This makes the domain layer zero-runtime-dependency — importing models.py
-    # does not pull in numpy or any other third-party package.
-    import numpy as np
-
-    from domain.types import DeviceType, LanguageCode, ModelKey, WatermarkVerdict
+from domain.types import DeviceType, LanguageCode, ModelKey, WatermarkVerdict
 
 # ──────────────────────────────────────────────────────────────────────────────
 # TTS request value-objects
 # ──────────────────────────────────────────────────────────────────────────────
 
 
-@dataclass
-class TTSRequest:
+class TTSRequest(BaseModel):
     """Input value-object for the Standard TTS service.
 
     Defaults mirror the '🎯 Default' preset and the Gradio slider defaults
     in app.py so callers that don't customise anything get sensible output.
     """
+
+    model_config = ConfigDict(frozen=True)
 
     text: str
     ref_audio_path: str | None = None
@@ -52,13 +44,14 @@ class TTSRequest:
     streaming: bool = False
 
 
-@dataclass
-class TurboTTSRequest:
+class TurboTTSRequest(BaseModel):
     """Input value-object for the Turbo TTS service.
 
     Turbo does NOT support exaggeration or cfg_weight — those params are absent.
     norm_loudness normalises the reference audio to -27 LUFS before conditioning.
     """
+
+    model_config = ConfigDict(frozen=True)
 
     text: str
     ref_audio_path: str | None = None
@@ -72,14 +65,15 @@ class TurboTTSRequest:
     streaming: bool = False
 
 
-@dataclass
-class MultilingualTTSRequest:
+class MultilingualTTSRequest(BaseModel):
     """Input value-object for the Multilingual TTS service (23 languages).
 
     Uses the same parameter set as TTSRequest but adds a `language` code and
     ships with a higher default rep_penalty (2.0) which empirically reduces
     artefacts on non-English languages.
     """
+
+    model_config = ConfigDict(frozen=True)
 
     text: str
     language: LanguageCode = "en"
@@ -94,13 +88,14 @@ class MultilingualTTSRequest:
     streaming: bool = False
 
 
-@dataclass
-class VoiceConversionRequest:
+class VoiceConversionRequest(BaseModel):
     """Input value-object for the Voice Conversion service.
 
     Both paths are mandatory — VC converts source audio to the target voice
     without any text prompt.
     """
+
+    model_config = ConfigDict(frozen=True)
 
     source_audio_path: str | None
     target_voice_path: str | None
@@ -111,17 +106,19 @@ class VoiceConversionRequest:
 # ──────────────────────────────────────────────────────────────────────────────
 
 
-@dataclass
-class AudioResult:
+class AudioResult(BaseModel):
     """Holds the raw audio output produced by any TTS or VC service.
 
     `samples` must be a 1-D float32 NumPy array of shape (N,).
     `sample_rate` is in Hz (typically 24 000 for Chatterbox models).
     """
 
+    model_config = ConfigDict(frozen=True, arbitrary_types_allowed=True)
+
     sample_rate: int
     samples: np.ndarray  # float32, shape (N,)
 
+    @computed_field
     @property
     def duration_s(self) -> float:
         """Duration in seconds.  Returns 0.0 if sample_rate is 0 (guard)."""
@@ -135,13 +132,14 @@ class AudioResult:
 # ──────────────────────────────────────────────────────────────────────────────
 
 
-@dataclass
-class ModelStatus:
+class ModelStatus(BaseModel):
     """Snapshot of a single model's identity and load state.
 
     Populated by IModelManagerService.get_all_status() and consumed by the
     Gradio model-manager tab renderer.
     """
+
+    model_config = ConfigDict(frozen=True)
 
     key: ModelKey  # "tts" | "turbo" | "multilingual" | "vc"
     display_name: str  # e.g. "Standard TTS"
@@ -153,13 +151,14 @@ class ModelStatus:
     on_disk: bool
 
 
-@dataclass
-class MemoryStats:
+class MemoryStats(BaseModel):
     """System + device memory snapshot returned by IMemoryMonitor.get_stats().
 
     Device fields (device_driver_gb, device_max_gb) are None on CPU-only
     systems where no GPU / MPS memory tracking is available.
     """
+
+    model_config = ConfigDict(frozen=True)
 
     sys_total_gb: float
     sys_used_gb: float
@@ -176,8 +175,7 @@ class MemoryStats:
 # ──────────────────────────────────────────────────────────────────────────────
 
 
-@dataclass
-class WatermarkResult:
+class WatermarkResult(BaseModel):
     """Result of a watermark-detection pass on a generated audio clip.
 
     verdict is one of:
@@ -186,6 +184,8 @@ class WatermarkResult:
         "inconclusive"  — score is in the ambiguous range
         "unavailable"   — detection library not installed / failed to initialise
     """
+
+    model_config = ConfigDict(frozen=True)
 
     score: float
     verdict: WatermarkVerdict
@@ -198,13 +198,14 @@ class WatermarkResult:
 # ──────────────────────────────────────────────────────────────────────────────
 
 
-@dataclass
-class AppConfig:
+class AppConfig(BaseModel):
     """Immutable runtime configuration resolved once at bootstrap.
 
     Passed into services and adapters via dependency injection so that no
     module reads environment variables or detects hardware on its own.
     """
+
+    model_config = ConfigDict(frozen=True)
 
     device: DeviceType
     watermark_available: bool

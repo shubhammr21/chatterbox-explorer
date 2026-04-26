@@ -34,7 +34,6 @@ instance so singletons from one test never leak into another.
 
 from __future__ import annotations
 
-import dataclasses
 import typing
 from unittest.mock import MagicMock
 
@@ -452,10 +451,15 @@ class TestAppContainerAppConfig:
         config = container.app_config()
         assert isinstance(config, AppConfig)
 
-    def test_app_config_is_dataclass(self) -> None:
+    def test_app_config_is_pydantic_model(self) -> None:
+        from pydantic import BaseModel
+
+        from domain.models import AppConfig
+
         container = _make_container()
         config = container.app_config()
-        assert dataclasses.is_dataclass(config)
+        assert isinstance(config, BaseModel)
+        assert isinstance(config, AppConfig)
 
     def test_app_config_same_instance_singleton(self) -> None:
         """app_config provider is Singleton — same AppConfig returned each call."""

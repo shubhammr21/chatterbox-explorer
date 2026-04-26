@@ -775,3 +775,128 @@ class TestErrorResponse:
             ]
         )
         assert len(r.errors) == 2
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Schema contract tests  (InboundSchema / OutboundSchema)
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+class TestSchemaContracts:
+    """InboundSchema and OutboundSchema contract enforcement tests.
+    Written before the base classes exist (RED phase).
+    """
+
+    # ── InboundSchema ─────────────────────────────────────────────────────────
+
+    def test_inbound_schema_is_abstract(self) -> None:
+        """Direct instantiation of InboundSchema must raise TypeError."""
+        from adapters.inbound.rest.schemas import InboundSchema
+
+        with pytest.raises(TypeError):
+            InboundSchema()  # type: ignore[abstract]
+
+    def test_tts_request_schema_is_inbound(self) -> None:
+        from adapters.inbound.rest.schemas import InboundSchema, TTSRequestSchema
+
+        assert issubclass(TTSRequestSchema, InboundSchema)
+
+    def test_turbo_request_schema_is_inbound(self) -> None:
+        from adapters.inbound.rest.schemas import InboundSchema, TurboRequestSchema
+
+        assert issubclass(TurboRequestSchema, InboundSchema)
+
+    def test_multilingual_request_schema_is_inbound(self) -> None:
+        from adapters.inbound.rest.schemas import InboundSchema, MultilingualRequestSchema
+
+        assert issubclass(MultilingualRequestSchema, InboundSchema)
+
+    def test_inbound_schema_missing_to_domain_raises(self) -> None:
+        """A subclass that forgets to_domain() must raise TypeError on instantiation."""
+        from adapters.inbound.rest.schemas import InboundSchema
+        from domain.models import TTSRequest
+
+        class _Broken(InboundSchema[TTSRequest]):
+            text: str
+            # intentionally missing to_domain()
+
+        with pytest.raises(TypeError):
+            _Broken(text="hello")
+
+    def test_inbound_schema_to_domain_returns_correct_type(self) -> None:
+        from adapters.inbound.rest.schemas import TTSRequestSchema
+        from domain.models import TTSRequest
+
+        schema = TTSRequestSchema(text="Hello")
+        result = schema.to_domain()
+        assert isinstance(result, TTSRequest)
+
+    # ── OutboundSchema ────────────────────────────────────────────────────────
+
+    def test_outbound_schema_is_abstract(self) -> None:
+        """Direct instantiation of OutboundSchema must raise TypeError."""
+        from adapters.inbound.rest.schemas import OutboundSchema
+
+        with pytest.raises(TypeError):
+            OutboundSchema()  # type: ignore[abstract]
+
+    def test_model_status_response_is_outbound(self) -> None:
+        from adapters.inbound.rest.schemas import ModelStatusResponse, OutboundSchema
+
+        assert issubclass(ModelStatusResponse, OutboundSchema)
+
+    def test_memory_stats_response_is_outbound(self) -> None:
+        from adapters.inbound.rest.schemas import MemoryStatsResponse, OutboundSchema
+
+        assert issubclass(MemoryStatsResponse, OutboundSchema)
+
+    def test_watermark_response_is_outbound(self) -> None:
+        from adapters.inbound.rest.schemas import OutboundSchema, WatermarkResponse
+
+        assert issubclass(WatermarkResponse, OutboundSchema)
+
+    def test_outbound_schema_missing_from_domain_raises(self) -> None:
+        """A subclass that forgets from_domain() must raise TypeError on instantiation."""
+        from adapters.inbound.rest.schemas import OutboundSchema
+        from domain.models import ModelStatus
+
+        class _Broken(OutboundSchema[ModelStatus]):
+            key: str
+            # intentionally missing from_domain()
+
+        from typing import cast
+
+        with pytest.raises(TypeError):
+            _Broken(key=cast("ModelKey", "tts"))
+
+    def test_outbound_schema_from_domain_returns_correct_type(self) -> None:
+        from typing import cast
+
+        from adapters.inbound.rest.schemas import ModelStatusResponse
+        from domain.models import ModelStatus
+
+        status = ModelStatus(
+            key=cast("ModelKey", "tts"),
+            display_name="Standard TTS",
+            class_name="ChatterboxTTS",
+            description="desc",
+            params="500M",
+            size_gb=1.4,
+            in_memory=False,
+            on_disk=True,
+        )
+        resp = ModelStatusResponse.from_domain(status)
+        assert isinstance(resp, ModelStatusResponse)
+        assert resp.key == "tts"
+
+    # ── Neutral schemas (no domain counterpart) ───────────────────────────────
+
+    def test_health_response_is_plain_base_model(self) -> None:
+        """HealthResponse has no domain counterpart — stays plain BaseModel."""
+        from pydantic import BaseModel
+
+        from adapters.inbound.rest.schemas import HealthResponse, InboundSchema, OutboundSchema
+
+        assert issubclass(HealthResponse, BaseModel)
+        assert not issubclass(HealthResponse, InboundSchema)
+        assert not issubclass(HealthResponse, OutboundSchema)

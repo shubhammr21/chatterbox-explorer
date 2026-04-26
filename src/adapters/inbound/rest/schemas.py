@@ -22,28 +22,85 @@ Forbidden imports (architecture rule)
 Allowed imports
 ---------------
 - pydantic (BaseModel, Field)
-- stdlib  (io, typing)
-- domain models (under TYPE_CHECKING to keep runtime deps minimal)
+- stdlib  (io, typing, abc)
+- domain models (runtime imports for Generic bases; AudioResult under TYPE_CHECKING)
 - numpy (for audio encoding only, inside the helper function)
 """
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, cast
+import abc
+from typing import TYPE_CHECKING, Generic, Self, TypeVar, cast
 
 from pydantic import BaseModel, Field
 
+from domain.models import (
+    MemoryStats,
+    ModelStatus,
+    MultilingualTTSRequest,
+    TTSRequest,
+    TurboTTSRequest,
+    WatermarkResult,
+)
+
 if TYPE_CHECKING:
-    from domain.models import (
-        AudioResult,
-        MemoryStats,
-        ModelStatus,
-        MultilingualTTSRequest,
-        TTSRequest,
-        TurboTTSRequest,
-        WatermarkResult,
-    )
+    from domain.models import AudioResult
     from domain.types import LanguageCode
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Generic type variable shared by both base classes
+# ──────────────────────────────────────────────────────────────────────────────
+
+DomainT = TypeVar("DomainT")
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Abstract base classes
+# ──────────────────────────────────────────────────────────────────────────────
+
+
+class InboundSchema(BaseModel, abc.ABC, Generic[DomainT]):
+    """Base for schemas that translate HTTP input → domain objects.
+
+    Subclasses must implement ``to_domain()`` returning the parametrised
+    domain type.  Direct instantiation is prevented by ``abc.ABC``.
+
+    Example::
+
+        class TTSRequestSchema(InboundSchema[TTSRequest]):
+            text: str
+
+            def to_domain(self) -> TTSRequest:
+                return TTSRequest(text=self.text)
+    """
+
+    @abc.abstractmethod
+    def to_domain(self) -> DomainT:
+        """Translate validated HTTP payload → domain object."""
+        ...
+
+
+class OutboundSchema(BaseModel, abc.ABC, Generic[DomainT]):
+    """Base for schemas that translate domain objects → HTTP response payloads.
+
+    Subclasses must implement ``from_domain()`` as a classmethod.
+    Direct instantiation is prevented by ``abc.ABC``.
+
+    Example::
+
+        class ModelStatusResponse(OutboundSchema[ModelStatus]):
+            key: str
+
+            @classmethod
+            def from_domain(cls, domain: ModelStatus) -> Self:
+                return cls(key=domain.key)
+    """
+
+    @classmethod
+    @abc.abstractmethod
+    def from_domain(cls, domain: DomainT) -> Self:
+        """Translate domain object → serializable response schema."""
+        ...
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -51,7 +108,7 @@ if TYPE_CHECKING:
 # ──────────────────────────────────────────────────────────────────────────────
 
 
-class TTSRequestSchema(BaseModel):
+class TTSRequestSchema(InboundSchema[TTSRequest]):
     """Request body for POST /api/v1/tts/generate.
 
     Mirrors the fields of :class:`~domain.models.TTSRequest` with the
@@ -71,8 +128,6 @@ class TTSRequestSchema(BaseModel):
 
     def to_domain(self) -> TTSRequest:
         """Convert to the :class:`~domain.models.TTSRequest` domain dataclass."""
-        from domain.models import TTSRequest
-
         return TTSRequest(
             text=self.text,
             ref_audio_path=None,
@@ -87,7 +142,7 @@ class TTSRequestSchema(BaseModel):
         )
 
 
-class TurboRequestSchema(BaseModel):
+class TurboRequestSchema(InboundSchema[TurboTTSRequest]):
     """Request body for POST /api/v1/turbo/generate.
 
     Mirrors :class:`~domain.models.TurboTTSRequest`.  Turbo does not
@@ -107,8 +162,6 @@ class TurboRequestSchema(BaseModel):
 
     def to_domain(self) -> TurboTTSRequest:
         """Convert to the :class:`~domain.models.TurboTTSRequest` domain dataclass."""
-        from domain.models import TurboTTSRequest
-
         return TurboTTSRequest(
             text=self.text,
             ref_audio_path=None,
@@ -123,7 +176,7 @@ class TurboRequestSchema(BaseModel):
         )
 
 
-class MultilingualRequestSchema(BaseModel):
+class MultilingualRequestSchema(InboundSchema[MultilingualTTSRequest]):
     """Request body for POST /api/v1/multilingual/generate.
 
     Mirrors :class:`~domain.models.MultilingualTTSRequest`.  Adds a
@@ -144,8 +197,6 @@ class MultilingualRequestSchema(BaseModel):
 
     def to_domain(self) -> MultilingualTTSRequest:
         """Convert to the :class:`~domain.models.MultilingualTTSRequest` domain dataclass."""
-        from domain.models import MultilingualTTSRequest
-
         return MultilingualTTSRequest(
             text=self.text,
             language=cast("LanguageCode", self.language),
@@ -166,7 +217,7 @@ class MultilingualRequestSchema(BaseModel):
 # ──────────────────────────────────────────────────────────────────────────────
 
 
-class ModelStatusResponse(BaseModel):
+class ModelStatusResponse(OutboundSchema[ModelStatus]):
     """JSON response item for GET /api/v1/models/status."""
 
     key: str
@@ -179,21 +230,21 @@ class ModelStatusResponse(BaseModel):
     on_disk: bool
 
     @classmethod
-    def from_domain(cls, status: ModelStatus) -> ModelStatusResponse:
+    def from_domain(cls, domain: ModelStatus) -> Self:
         """Build from a :class:`~domain.models.ModelStatus` domain object."""
         return cls(
-            key=status.key,
-            display_name=status.display_name,
-            class_name=status.class_name,
-            description=status.description,
-            params=status.params,
-            size_gb=status.size_gb,
-            in_memory=status.in_memory,
-            on_disk=status.on_disk,
+            key=domain.key,
+            display_name=domain.display_name,
+            class_name=domain.class_name,
+            description=domain.description,
+            params=domain.params,
+            size_gb=domain.size_gb,
+            in_memory=domain.in_memory,
+            on_disk=domain.on_disk,
         )
 
 
-class MemoryStatsResponse(BaseModel):
+class MemoryStatsResponse(OutboundSchema[MemoryStats]):
     """JSON response for GET /api/v1/models/memory."""
 
     sys_total_gb: float
@@ -206,21 +257,21 @@ class MemoryStatsResponse(BaseModel):
     device_max_gb: float | None
 
     @classmethod
-    def from_domain(cls, stats: MemoryStats) -> MemoryStatsResponse:
+    def from_domain(cls, domain: MemoryStats) -> Self:
         """Build from a :class:`~domain.models.MemoryStats` domain object."""
         return cls(
-            sys_total_gb=stats.sys_total_gb,
-            sys_used_gb=stats.sys_used_gb,
-            sys_avail_gb=stats.sys_avail_gb,
-            sys_percent=stats.sys_percent,
-            proc_rss_gb=stats.proc_rss_gb,
-            device_name=stats.device_name,
-            device_driver_gb=stats.device_driver_gb,
-            device_max_gb=stats.device_max_gb,
+            sys_total_gb=domain.sys_total_gb,
+            sys_used_gb=domain.sys_used_gb,
+            sys_avail_gb=domain.sys_avail_gb,
+            sys_percent=domain.sys_percent,
+            proc_rss_gb=domain.proc_rss_gb,
+            device_name=domain.device_name,
+            device_driver_gb=domain.device_driver_gb,
+            device_max_gb=domain.device_max_gb,
         )
 
 
-class WatermarkResponse(BaseModel):
+class WatermarkResponse(OutboundSchema[WatermarkResult]):
     """JSON response for POST /api/v1/watermark/detect."""
 
     score: float
@@ -229,13 +280,13 @@ class WatermarkResponse(BaseModel):
     available: bool
 
     @classmethod
-    def from_domain(cls, result: WatermarkResult) -> WatermarkResponse:
+    def from_domain(cls, domain: WatermarkResult) -> Self:
         """Build from a :class:`~domain.models.WatermarkResult` domain object."""
         return cls(
-            score=result.score,
-            verdict=result.verdict,
-            message=result.message,
-            available=result.available,
+            score=domain.score,
+            verdict=domain.verdict,
+            message=domain.message,
+            available=domain.available,
         )
 
 

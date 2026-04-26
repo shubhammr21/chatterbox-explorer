@@ -44,6 +44,8 @@ from domain.models import (
 )
 
 if TYPE_CHECKING:
+    import numpy as np
+
     from domain.models import AudioResult
     from domain.types import LanguageCode
 
@@ -346,6 +348,38 @@ def audio_result_to_wav_bytes(result: AudioResult) -> bytes:
     buf = io.BytesIO()
     wavfile.write(buf, result.sample_rate, int16_arr)
     return buf.getvalue()
+
+
+def audio_delta_to_pcm_bytes(delta_samples: np.ndarray) -> bytes:
+    """Convert a float32 delta ndarray to raw int16 PCM bytes for streaming.
+
+    Does NOT produce a WAV header — raw PCM only.
+    Each HTTP chunk from a streaming endpoint is the output of this function.
+
+    Peak normalisation is applied when samples exceed [-1.0, 1.0] to prevent
+    clipping.  In-range samples are clipped (not scaled) to guard against
+    floating-point rounding artefacts at the boundaries.
+
+    Args:
+        delta_samples: float32 ndarray slice representing NEW samples only
+            (the delta since the previous yield from generate_stream()).
+
+    Returns:
+        Raw bytes — 2 bytes per sample (int16, little-endian, mono).
+        Returns b"" for empty input.
+    """
+    import numpy as _np
+
+    if len(delta_samples) == 0:
+        return b""
+
+    arr = delta_samples.astype(_np.float32)
+    peak = float(_np.abs(arr).max())
+    if peak > 1.0:
+        arr = arr / peak
+
+    int16_arr = _np.clip(arr * 32767.0, -32768, 32767).astype(_np.int16)
+    return int16_arr.tobytes()
 
 
 # ──────────────────────────────────────────────────────────────────────────────

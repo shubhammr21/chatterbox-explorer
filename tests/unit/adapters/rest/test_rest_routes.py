@@ -88,11 +88,11 @@ def rest_client(rest_app):
 # ─────────────────────────────────────────────────────────────────────────────
 
 
-def _fake_audio() -> AudioResult:
-    """Return a 1-second silence AudioResult — sufficient for WAV encoding."""
+def _fake_audio(n_samples: int = 24000) -> AudioResult:
+    """Return a silence AudioResult with the given number of samples."""
     return AudioResult(
         sample_rate=24000,
-        samples=np.zeros(24000, dtype=np.float32),
+        samples=np.zeros(n_samples, dtype=np.float32),
     )
 
 
@@ -705,6 +705,130 @@ class TestWatermarkDetectEndpoint:
         """Omitting the multipart 'audio' field must yield a 422 from FastAPI."""
         resp = rest_client.post("/api/v1/watermark/detect")
         assert resp.status_code == 422
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Streaming TTS  POST /api/v1/tts/stream
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+class TestTTSStreamEndpoint:
+    """POST /api/v1/tts/stream — streams raw int16 PCM chunks."""
+
+    def test_stream_returns_200(self, rest_client, rest_app) -> None:
+        mock_tts = MagicMock()
+        mock_tts.generate_stream.return_value = iter([_fake_audio(), _fake_audio()])
+        with rest_app.container.tts_service.override(mock_tts):
+            resp = rest_client.post(
+                "/api/v1/tts/stream",
+                json={"text": "Hello world"},
+            )
+        assert resp.status_code == 200
+
+    def test_stream_content_type_is_audio_pcm(self, rest_client, rest_app) -> None:
+        mock_tts = MagicMock()
+        mock_tts.generate_stream.return_value = iter([_fake_audio()])
+        with rest_app.container.tts_service.override(mock_tts):
+            resp = rest_client.post("/api/v1/tts/stream", json={"text": "Hello"})
+        assert "audio/pcm" in resp.headers["content-type"]
+
+    def test_stream_has_x_sample_rate_header(self, rest_client, rest_app) -> None:
+        mock_tts = MagicMock()
+        mock_tts.generate_stream.return_value = iter([_fake_audio()])
+        with rest_app.container.tts_service.override(mock_tts):
+            resp = rest_client.post("/api/v1/tts/stream", json={"text": "Hello"})
+        assert "X-Sample-Rate" in resp.headers
+        assert resp.headers["X-Sample-Rate"] == "24000"
+
+    def test_stream_has_x_channels_header(self, rest_client, rest_app) -> None:
+        mock_tts = MagicMock()
+        mock_tts.generate_stream.return_value = iter([_fake_audio()])
+        with rest_app.container.tts_service.override(mock_tts):
+            resp = rest_client.post("/api/v1/tts/stream", json={"text": "Hello"})
+        assert resp.headers["X-Channels"] == "1"
+
+    def test_stream_body_is_pcm_bytes(self, rest_client, rest_app) -> None:
+        """Body should be non-empty raw PCM (no WAV RIFF header)."""
+        mock_tts = MagicMock()
+        mock_tts.generate_stream.return_value = iter([_fake_audio(n_samples=24000)])
+        with rest_app.container.tts_service.override(mock_tts):
+            resp = rest_client.post("/api/v1/tts/stream", json={"text": "Hello"})
+        # Raw PCM — must NOT start with RIFF
+        assert resp.content[:4] != b"RIFF"
+        # 24000 samples x 2 bytes/sample = 48000 bytes
+        assert len(resp.content) == 48000
+
+    def test_stream_empty_text_returns_422(self, rest_client) -> None:
+        resp = rest_client.post("/api/v1/tts/stream", json={"text": ""})
+        assert resp.status_code == 422
+
+    def test_stream_calls_generate_stream_not_generate(self, rest_client, rest_app) -> None:
+        """Streaming endpoint must call generate_stream(), not generate()."""
+        mock_tts = MagicMock()
+        mock_tts.generate_stream.return_value = iter([_fake_audio()])
+        with rest_app.container.tts_service.override(mock_tts):
+            rest_client.post("/api/v1/tts/stream", json={"text": "Hello"})
+        mock_tts.generate_stream.assert_called_once()
+        mock_tts.generate.assert_not_called()
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Streaming Turbo  POST /api/v1/turbo/stream
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+class TestTurboStreamEndpoint:
+    """POST /api/v1/turbo/stream — mirrors TTS stream but uses turbo service."""
+
+    def test_stream_returns_200(self, rest_client, rest_app) -> None:
+        mock_turbo = MagicMock()
+        mock_turbo.generate_stream.return_value = iter([_fake_audio()])
+        with rest_app.container.turbo_service.override(mock_turbo):
+            resp = rest_client.post("/api/v1/turbo/stream", json={"text": "Hello"})
+        assert resp.status_code == 200
+
+    def test_stream_content_type_is_audio_pcm(self, rest_client, rest_app) -> None:
+        mock_turbo = MagicMock()
+        mock_turbo.generate_stream.return_value = iter([_fake_audio()])
+        with rest_app.container.turbo_service.override(mock_turbo):
+            resp = rest_client.post("/api/v1/turbo/stream", json={"text": "Hello"})
+        assert "audio/pcm" in resp.headers["content-type"]
+
+    def test_stream_calls_generate_stream(self, rest_client, rest_app) -> None:
+        mock_turbo = MagicMock()
+        mock_turbo.generate_stream.return_value = iter([_fake_audio()])
+        with rest_app.container.turbo_service.override(mock_turbo):
+            rest_client.post("/api/v1/turbo/stream", json={"text": "Hello"})
+        mock_turbo.generate_stream.assert_called_once()
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Streaming Multilingual  POST /api/v1/multilingual/stream
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+class TestMultilingualStreamEndpoint:
+    """POST /api/v1/multilingual/stream."""
+
+    def test_stream_returns_200(self, rest_client, rest_app) -> None:
+        mock_mtl = MagicMock()
+        mock_mtl.generate_stream.return_value = iter([_fake_audio()])
+        with rest_app.container.multilingual_service.override(mock_mtl):
+            resp = rest_client.post(
+                "/api/v1/multilingual/stream",
+                json={"text": "Bonjour", "language": "fr"},
+            )
+        assert resp.status_code == 200
+
+    def test_stream_calls_generate_stream(self, rest_client, rest_app) -> None:
+        mock_mtl = MagicMock()
+        mock_mtl.generate_stream.return_value = iter([_fake_audio()])
+        with rest_app.container.multilingual_service.override(mock_mtl):
+            rest_client.post(
+                "/api/v1/multilingual/stream",
+                json={"text": "Bonjour", "language": "fr"},
+            )
+        mock_mtl.generate_stream.assert_called_once()
 
 
 # ─────────────────────────────────────────────────────────────────────────────

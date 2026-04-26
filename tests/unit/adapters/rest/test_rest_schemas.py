@@ -724,6 +724,51 @@ class TestAudioResultToWavBytes:
 
 
 # ──────────────────────────────────────────────────────────────────────────────
+# audio_delta_to_pcm_bytes()
+# ──────────────────────────────────────────────────────────────────────────────
+
+
+class TestAudioDeltaToPcmBytes:
+    """audio_delta_to_pcm_bytes() converts float32 delta samples to raw int16 PCM bytes."""
+
+    def test_returns_bytes(self) -> None:
+        from adapters.inbound.rest.schemas import audio_delta_to_pcm_bytes
+
+        result = audio_delta_to_pcm_bytes(np.zeros(100, dtype=np.float32))
+        assert isinstance(result, bytes)
+
+    def test_byte_count_is_double_sample_count(self) -> None:
+        """int16 = 2 bytes per sample."""
+        from adapters.inbound.rest.schemas import audio_delta_to_pcm_bytes
+
+        result = audio_delta_to_pcm_bytes(np.zeros(100, dtype=np.float32))
+        assert len(result) == 200  # 100 samples x 2 bytes
+
+    def test_silence_produces_zero_bytes(self) -> None:
+        from adapters.inbound.rest.schemas import audio_delta_to_pcm_bytes
+
+        result = audio_delta_to_pcm_bytes(np.zeros(10, dtype=np.float32))
+        assert all(b == 0 for b in result)
+
+    def test_peak_normalisation_prevents_clipping(self) -> None:
+        """Samples > 1.0 must be normalised before int16 conversion."""
+        from adapters.inbound.rest.schemas import audio_delta_to_pcm_bytes
+
+        samples = np.array([2.0, -4.0, 1.0], dtype=np.float32)
+        result = audio_delta_to_pcm_bytes(samples)
+        # Peak = 4.0, normalised: [0.5, -1.0, 0.25]
+        # int16: [16383, -32767, 8191]  (approx)
+        values = np.frombuffer(result, dtype=np.int16)
+        assert values[1] <= -32000  # -1.0 → near -32767
+
+    def test_empty_array_returns_empty_bytes(self) -> None:
+        from adapters.inbound.rest.schemas import audio_delta_to_pcm_bytes
+
+        result = audio_delta_to_pcm_bytes(np.array([], dtype=np.float32))
+        assert result == b""
+
+
+# ──────────────────────────────────────────────────────────────────────────────
 # ErrorDetail and ErrorResponse
 # ──────────────────────────────────────────────────────────────────────────────
 

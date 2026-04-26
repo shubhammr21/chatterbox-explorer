@@ -38,7 +38,8 @@ from typing import TYPE_CHECKING, cast
 
 from dependency_injector.wiring import Provide, inject
 from fastapi import APIRouter, Depends, File, HTTPException, Response, UploadFile, status
-from starlette.concurrency import run_in_threadpool
+from fastapi.responses import StreamingResponse
+from starlette.concurrency import iterate_in_threadpool, run_in_threadpool
 
 from adapters.inbound.rest.concurrency import inference_semaphore
 from adapters.inbound.rest.schemas import (
@@ -50,11 +51,14 @@ from adapters.inbound.rest.schemas import (
     TTSRequestSchema,
     TurboRequestSchema,
     WatermarkResponse,
+    audio_delta_to_pcm_bytes,
     audio_result_to_wav_bytes,
 )
 from infrastructure.container import AppContainer
 
 if TYPE_CHECKING:
+    from collections.abc import AsyncIterator
+
     from domain.models import AppConfig
     from domain.types import ModelKey
     from ports.input import (
@@ -180,7 +184,7 @@ async def generate_turbo(
 
 
 # ──────────────────────────────────────────────────────────────────────────────
-# Multilingual TTS
+# Multil ingual TTS
 # ──────────────────────────────────────────────────────────────────────────────
 
 
@@ -217,6 +221,196 @@ async def generate_multilingual(
         content=wav,
         media_type="audio/wav",
         headers={"Content-Disposition": "attachment; filename=output_multilingual.wav"},
+    )
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Streaming TTS endpoints  (chunked raw PCM, delta extraction)
+# ──────────────────────────────────────────────────────────────────────────────
+
+# Chatterbox TTS models always produce 24000 Hz audio.
+# This is fixed at the model level; no request parameter can change it.
+_CHATTERBOX_SAMPLE_RATE: int = 24000
+
+_STREAM_HEADERS: dict[str, str] = {
+    "X-Sample-Rate": str(_CHATTERBOX_SAMPLE_RATE),
+    "X-Channels": "1",
+    "X-Bit-Depth": "16",
+    "X-Encoding": "pcm-s16le",
+    "Cache-Control": "no-cache",
+    "X-Accel-Buffering": "no",  # disable nginx proxy buffering
+}
+
+
+@router.post(
+    "/tts/stream",
+    summary="Stream Standard TTS audio sentence-by-sentence (chunked raw PCM)",
+    response_class=StreamingResponse,
+    responses={
+        200: {
+            "content": {"audio/pcm": {}},
+            "description": (
+                "Chunked raw PCM audio (int16, little-endian, mono, 24 kHz). "
+                "Read X-Sample-Rate, X-Channels, X-Bit-Depth, X-Encoding headers "
+                "to decode. Each HTTP chunk is the delta audio for one sentence."
+            ),
+        },
+        422: {"description": "Input validation error (empty text, bad params)"},
+        503: {"description": "Model or infrastructure failure"},
+    },
+    tags=["tts"],
+)
+@inject
+async def stream_tts(
+    body: TTSRequestSchema,
+    tts: ITTSService = Depends(Provide[AppContainer.tts_service]),
+) -> StreamingResponse:
+    """Stream Standard TTS audio as chunked raw PCM, sentence by sentence.
+
+    Each HTTP chunk contains only the NEW audio generated for one sentence
+    (delta extraction from the cumulative AudioResult stream). Concatenating
+    all chunks produces the complete audio for the entire text.
+
+    Semaphore scope
+    ---------------
+    ``inference_semaphore`` is held for the **entire stream** (not per
+    sentence). On a single GPU, releasing between sentences would allow
+    another request to interleave, causing unpredictable latency spikes
+    mid-stream.  Concurrent requests queue on the semaphore and start
+    streaming once the GPU is free.
+
+    Client usage (Python)::
+
+        import httpx, numpy as np
+        with httpx.Client() as client:
+            with client.stream("POST", "/api/v1/tts/stream",
+                               json={"text": "Hello world."}) as r:
+                sr = int(r.headers["X-Sample-Rate"])
+                pcm = b"".join(r.iter_bytes())
+        samples = np.frombuffer(pcm, dtype=np.int16).astype(np.float32) / 32767
+        # play with sounddevice.play(samples, sr)
+
+    Client usage (curl + ffplay)::
+
+        curl -sN -X POST /api/v1/tts/stream \\
+             -H "Content-Type: application/json" \\
+             -d '{"text": "Hello world."}' | \\
+             ffplay -f s16le -ar 24000 -ac 1 -i -
+    """
+    domain_request = body.to_domain()
+
+    async def _pcm_stream() -> AsyncIterator[bytes]:
+        async with inference_semaphore:
+            sync_gen = tts.generate_stream(domain_request)
+            prev_len: int = 0
+            async for result in iterate_in_threadpool(sync_gen):
+                delta = result.samples[prev_len:]
+                prev_len = len(result.samples)
+                if len(delta) > 0:
+                    yield audio_delta_to_pcm_bytes(delta)
+
+    return StreamingResponse(
+        content=_pcm_stream(),
+        media_type="audio/pcm",
+        headers=_STREAM_HEADERS,
+    )
+
+
+@router.post(
+    "/turbo/stream",
+    summary="Stream Turbo TTS audio sentence-by-sentence (chunked raw PCM)",
+    response_class=StreamingResponse,
+    responses={
+        200: {
+            "content": {"audio/pcm": {}},
+            "description": (
+                "Chunked raw PCM audio (int16, little-endian, mono, 24 kHz). "
+                "Read X-Sample-Rate, X-Channels, X-Bit-Depth, X-Encoding headers "
+                "to decode. Each HTTP chunk is the delta audio for one sentence."
+            ),
+        },
+        422: {"description": "Input validation error (empty text, bad params)"},
+        503: {"description": "Model or infrastructure failure"},
+    },
+    tags=["turbo"],
+)
+@inject
+async def stream_turbo(
+    body: TurboRequestSchema,
+    turbo: ITurboTTSService = Depends(Provide[AppContainer.turbo_service]),
+) -> StreamingResponse:
+    """Stream Turbo TTS audio as chunked raw PCM, sentence by sentence.
+
+    Turbo is faster and lower-VRAM than Standard TTS.  Supports paralinguistic
+    tags ([laugh], [sigh], etc.) but does not support exaggeration or CFG weight.
+
+    See ``stream_tts`` for semaphore scope and client usage documentation.
+    """
+    domain_request = body.to_domain()
+
+    async def _pcm_stream() -> AsyncIterator[bytes]:
+        async with inference_semaphore:
+            sync_gen = turbo.generate_stream(domain_request)
+            prev_len: int = 0
+            async for result in iterate_in_threadpool(sync_gen):
+                delta = result.samples[prev_len:]
+                prev_len = len(result.samples)
+                if len(delta) > 0:
+                    yield audio_delta_to_pcm_bytes(delta)
+
+    return StreamingResponse(
+        content=_pcm_stream(),
+        media_type="audio/pcm",
+        headers=_STREAM_HEADERS,
+    )
+
+
+@router.post(
+    "/multilingual/stream",
+    summary="Stream Multilingual TTS audio sentence-by-sentence (chunked raw PCM)",
+    response_class=StreamingResponse,
+    responses={
+        200: {
+            "content": {"audio/pcm": {}},
+            "description": (
+                "Chunked raw PCM audio (int16, little-endian, mono, 24 kHz). "
+                "Read X-Sample-Rate, X-Channels, X-Bit-Depth, X-Encoding headers "
+                "to decode. Each HTTP chunk is the delta audio for one sentence."
+            ),
+        },
+        422: {"description": "Input validation error (empty text, unknown language)"},
+        503: {"description": "Model or infrastructure failure"},
+    },
+    tags=["multilingual"],
+)
+@inject
+async def stream_multilingual(
+    body: MultilingualRequestSchema,
+    mtl: IMultilingualTTSService = Depends(Provide[AppContainer.multilingual_service]),
+) -> StreamingResponse:
+    """Stream Multilingual TTS audio as chunked raw PCM, sentence by sentence.
+
+    Supports 23 languages with zero-shot cross-language voice cloning.
+    Pass the ISO 639-1 language code in the ``language`` field (e.g. ``"fr"``).
+
+    See ``stream_tts`` for semaphore scope and client usage documentation.
+    """
+    domain_request = body.to_domain()
+
+    async def _pcm_stream() -> AsyncIterator[bytes]:
+        async with inference_semaphore:
+            sync_gen = mtl.generate_stream(domain_request)
+            prev_len: int = 0
+            async for result in iterate_in_threadpool(sync_gen):
+                delta = result.samples[prev_len:]
+                prev_len = len(result.samples)
+                if len(delta) > 0:
+                    yield audio_delta_to_pcm_bytes(delta)
+
+    return StreamingResponse(
+        content=_pcm_stream(),
+        media_type="audio/pcm",
+        headers=_STREAM_HEADERS,
     )
 
 

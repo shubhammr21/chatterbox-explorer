@@ -9,9 +9,10 @@ Architecture rules enforced here:
     - Returns human-readable strings (not framework-specific errors/warnings)
     - Raises RuntimeError for infrastructure failures
 """
+
 from __future__ import annotations
 
-from typing import Iterator
+from collections.abc import Iterator
 
 from domain.models import MemoryStats, ModelStatus
 from domain.types import ModelKey
@@ -69,9 +70,7 @@ class ModelManagerService:
             # Re-raise repo RuntimeErrors as-is so callers can handle them.
             raise
         except Exception as exc:
-            raise RuntimeError(
-                f"Failed to load model '{key}' ({display}): {exc}"
-            ) from exc
+            raise RuntimeError(f"Failed to load model '{key}' ({display}): {exc}") from exc
 
         return f"{display} loaded successfully."
 

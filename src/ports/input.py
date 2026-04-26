@@ -7,12 +7,12 @@ exposes to its driving adapters (Gradio UI, CLI, tests).
 Forbidden imports: torch, gradio, chatterbox, psutil — any of these here is
 an architecture violation.
 """
+
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import Iterator
+from collections.abc import Iterator
 
-from domain.types import ModelKey
 from domain.models import (
     AudioResult,
     MemoryStats,
@@ -23,6 +23,7 @@ from domain.models import (
     VoiceConversionRequest,
     WatermarkResult,
 )
+from domain.types import ModelKey
 
 
 class ITTSService(ABC):

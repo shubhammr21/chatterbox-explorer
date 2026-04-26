@@ -10,15 +10,20 @@ Architecture contract:
     - unload() follows the strict 5-step MPS recipe to fully flush device memory.
     - get_model() always raises RuntimeError on failure (never returns None).
 """
+
 from __future__ import annotations
 
 import gc
 import logging
 import os
-from typing import Any, Iterator
+from typing import TYPE_CHECKING, Any
 
-from domain.types import ALL_MODEL_KEYS, DlMode, ModelKey, ModelMetadata
 from ports.output import IModelRepository
+
+if TYPE_CHECKING:
+    from collections.abc import Iterator
+
+    from domain.types import ModelKey, ModelMetadata
 
 log = logging.getLogger(__name__)
 
@@ -42,14 +47,14 @@ log = logging.getLogger(__name__)
 MODEL_REGISTRY: dict[ModelKey, ModelMetadata] = {
     "tts": {
         "display_name": "Standard TTS",
-        "class_name":   "ChatterboxTTS",
-        "description":  "English · zero-shot voice cloning · exaggeration & CFG controls",
-        "params":       "500M",
-        "size_gb":      1.4,
-        "repo_id":      "ResembleAI/chatterbox",
-        "check_file":   "t3_cfg.safetensors",
-        "dl_mode":      "files",        # type: DlMode
-        "dl_files":     [
+        "class_name": "ChatterboxTTS",
+        "description": "English · zero-shot voice cloning · exaggeration & CFG controls",
+        "params": "500M",
+        "size_gb": 1.4,
+        "repo_id": "ResembleAI/chatterbox",
+        "check_file": "t3_cfg.safetensors",
+        "dl_mode": "files",
+        "dl_files": [
             "ve.safetensors",
             "t3_cfg.safetensors",
             "s3gen.safetensors",
@@ -59,25 +64,25 @@ MODEL_REGISTRY: dict[ModelKey, ModelMetadata] = {
     },
     "turbo": {
         "display_name": "Turbo TTS",
-        "class_name":   "ChatterboxTurboTTS",
-        "description":  "English · 1-step decoder · paralinguistic tags · low VRAM",
-        "params":       "350M",
-        "size_gb":      2.9,
-        "repo_id":      "ResembleAI/chatterbox-turbo",
-        "check_file":   "t3_turbo_v1.safetensors",
-        "dl_mode":      "snapshot",     # type: DlMode
-        "dl_patterns":  ["*.safetensors", "*.json", "*.txt", "*.pt", "*.model"],
+        "class_name": "ChatterboxTurboTTS",
+        "description": "English · 1-step decoder · paralinguistic tags · low VRAM",
+        "params": "350M",
+        "size_gb": 2.9,
+        "repo_id": "ResembleAI/chatterbox-turbo",
+        "check_file": "t3_turbo_v1.safetensors",
+        "dl_mode": "snapshot",
+        "dl_patterns": ["*.safetensors", "*.json", "*.txt", "*.pt", "*.model"],
     },
     "multilingual": {
         "display_name": "Multilingual TTS",
-        "class_name":   "ChatterboxMultilingualTTS",
-        "description":  "23 languages · cross-language voice cloning",
-        "params":       "500M",
-        "size_gb":      1.5,
-        "repo_id":      "ResembleAI/chatterbox",
-        "check_file":   "t3_mtl23ls_v2.safetensors",
-        "dl_mode":      "snapshot",     # type: DlMode
-        "dl_patterns":  [
+        "class_name": "ChatterboxMultilingualTTS",
+        "description": "23 languages · cross-language voice cloning",
+        "params": "500M",
+        "size_gb": 1.5,
+        "repo_id": "ResembleAI/chatterbox",
+        "check_file": "t3_mtl23ls_v2.safetensors",
+        "dl_mode": "snapshot",
+        "dl_patterns": [
             "ve.pt",
             "t3_mtl23ls_v2.safetensors",
             "s3gen.pt",
@@ -88,14 +93,14 @@ MODEL_REGISTRY: dict[ModelKey, ModelMetadata] = {
     },
     "vc": {
         "display_name": "Voice Conversion",
-        "class_name":   "ChatterboxVC",
-        "description":  "Audio-to-audio · no text needed · voice identity swap",
-        "params":       "—",
-        "size_gb":      0.4,
-        "repo_id":      "ResembleAI/chatterbox",
-        "check_file":   "s3gen.safetensors",
-        "dl_mode":      "files",        # type: DlMode
-        "dl_files":     ["s3gen.safetensors", "conds.pt"],
+        "class_name": "ChatterboxVC",
+        "description": "Audio-to-audio · no text needed · voice identity swap",
+        "params": "—",
+        "size_gb": 0.4,
+        "repo_id": "ResembleAI/chatterbox",
+        "check_file": "s3gen.safetensors",
+        "dl_mode": "files",
+        "dl_files": ["s3gen.safetensors", "conds.pt"],
     },
 }
 
@@ -103,6 +108,7 @@ MODEL_REGISTRY: dict[ModelKey, ModelMetadata] = {
 # ──────────────────────────────────────────────────────────────────────────────
 # Adapter implementation
 # ──────────────────────────────────────────────────────────────────────────────
+
 
 class ChatterboxModelLoader(IModelRepository):
     """Concrete IModelRepository backed by the Chatterbox model family.
@@ -157,8 +163,7 @@ class ChatterboxModelLoader(IModelRepository):
 
         if key not in MODEL_REGISTRY:
             raise RuntimeError(
-                f"Unknown model key {key!r}. "
-                f"Valid keys: {list(MODEL_REGISTRY.keys())}"
+                f"Unknown model key {key!r}. Valid keys: {list(MODEL_REGISTRY.keys())}"
             )
 
         log.info(
@@ -176,8 +181,7 @@ class ChatterboxModelLoader(IModelRepository):
             raise
         except Exception as exc:
             raise RuntimeError(
-                f"Failed to load model '{key}' "
-                f"({MODEL_REGISTRY[key]['display_name']}): {exc}"
+                f"Failed to load model '{key}' ({MODEL_REGISTRY[key]['display_name']}): {exc}"
             ) from exc
 
         self._cache[key] = model
@@ -325,10 +329,7 @@ class ChatterboxModelLoader(IModelRepository):
                 yield f"  Unknown dl_mode {info['dl_mode']!r} — skipping"
                 return
 
-            yield (
-                f"{info['display_name']} download complete. "
-                "Click Load to bring it into memory."
-            )
+            yield (f"{info['display_name']} download complete. Click Load to bring it into memory.")
 
         except Exception as exc:
             yield f"Download failed: {exc}"
@@ -360,10 +361,10 @@ class ChatterboxModelLoader(IModelRepository):
         """
         info = MODEL_REGISTRY.get(key, {})
         return {
-            "size_gb":     info.get("size_gb",     0.0),
-            "params":      info.get("params",       "—"),
+            "size_gb": info.get("size_gb", 0.0),
+            "params": info.get("params", "—"),
             "description": info.get("description", ""),
-            "class_name":  info.get("class_name",  ""),
+            "class_name": info.get("class_name", ""),
         }
 
     # ──────────────────────────────────────────────────────────────────────────

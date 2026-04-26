@@ -10,11 +10,10 @@ Rules:
 - No torch, gradio, chatterbox, psutil, or huggingface_hub imports.
 - Pure constant validation only.
 """
+
 from __future__ import annotations
 
 import re
-
-import pytest
 
 from domain.languages import (
     LANGUAGE_AUDIO_DEFAULTS,
@@ -23,10 +22,10 @@ from domain.languages import (
     SAMPLE_TEXTS,
 )
 
-
 # ──────────────────────────────────────────────────────────────────────────────
 # LANGUAGE_OPTIONS
 # ──────────────────────────────────────────────────────────────────────────────
+
 
 class TestLanguageOptions:
     def test_language_options_has_23_entries(self):
@@ -42,9 +41,7 @@ class TestLanguageOptions:
     def test_all_entries_have_separator(self):
         """Every entry must follow the '<code> - <Name>' pattern."""
         for entry in LANGUAGE_OPTIONS:
-            assert " - " in entry, (
-                f"Entry {entry!r} does not contain ' - ' separator"
-            )
+            assert " - " in entry, f"Entry {entry!r} does not contain ' - ' separator"
 
     def test_all_entries_have_two_letter_code(self):
         """The prefix before ' - ' must be exactly 2 lowercase letters."""
@@ -57,7 +54,7 @@ class TestLanguageOptions:
     def test_all_entries_have_non_empty_name(self):
         """The part after ' - ' must not be blank."""
         for entry in LANGUAGE_OPTIONS:
-            code, _, name = entry.partition(" - ")
+            _code, _, name = entry.partition(" - ")
             assert name.strip(), f"Entry {entry!r} has an empty language name"
 
     def test_language_options_contains_english(self):
@@ -77,12 +74,29 @@ class TestLanguageOptions:
     def test_known_languages_present(self):
         """Spot-check that the expected 23 languages are all present."""
         expected = {
-            "ar - Arabic", "da - Danish", "de - German", "el - Greek",
-            "en - English", "es - Spanish", "fi - Finnish", "fr - French",
-            "he - Hebrew", "hi - Hindi", "it - Italian", "ja - Japanese",
-            "ko - Korean", "ms - Malay", "nl - Dutch", "no - Norwegian",
-            "pl - Polish", "pt - Portuguese", "ru - Russian", "sv - Swedish",
-            "sw - Swahili", "tr - Turkish", "zh - Chinese",
+            "ar - Arabic",
+            "da - Danish",
+            "de - German",
+            "el - Greek",
+            "en - English",
+            "es - Spanish",
+            "fi - Finnish",
+            "fr - French",
+            "he - Hebrew",
+            "hi - Hindi",
+            "it - Italian",
+            "ja - Japanese",
+            "ko - Korean",
+            "ms - Malay",
+            "nl - Dutch",
+            "no - Norwegian",
+            "pl - Polish",
+            "pt - Portuguese",
+            "ru - Russian",
+            "sv - Swedish",
+            "sw - Swahili",
+            "tr - Turkish",
+            "zh - Chinese",
         }
         assert set(LANGUAGE_OPTIONS) == expected
 
@@ -91,6 +105,7 @@ class TestLanguageOptions:
 # SAMPLE_TEXTS
 # ──────────────────────────────────────────────────────────────────────────────
 
+
 class TestSampleTexts:
     def test_sample_texts_is_dict(self):
         assert isinstance(SAMPLE_TEXTS, dict)
@@ -98,18 +113,14 @@ class TestSampleTexts:
     def test_all_language_options_have_sample_texts(self):
         """Every entry in LANGUAGE_OPTIONS must have a corresponding sample text."""
         for lang in LANGUAGE_OPTIONS:
-            assert lang in SAMPLE_TEXTS, (
-                f"SAMPLE_TEXTS missing entry for {lang!r}"
-            )
+            assert lang in SAMPLE_TEXTS, f"SAMPLE_TEXTS missing entry for {lang!r}"
 
     def test_sample_texts_count_matches_language_options(self):
         assert len(SAMPLE_TEXTS) == len(LANGUAGE_OPTIONS)
 
     def test_all_sample_texts_are_non_empty_strings(self):
         for lang, text in SAMPLE_TEXTS.items():
-            assert isinstance(text, str), (
-                f"SAMPLE_TEXTS[{lang!r}] is not a str: {type(text)}"
-            )
+            assert isinstance(text, str), f"SAMPLE_TEXTS[{lang!r}] is not a str: {type(text)}"
             assert text.strip(), f"SAMPLE_TEXTS[{lang!r}] is empty"
 
     def test_sample_texts_keys_match_language_options(self):
@@ -121,9 +132,9 @@ class TestSampleTexts:
         english_text = SAMPLE_TEXTS.get("en - English", "")
         assert english_text, "English sample text must not be empty"
         # ASCII-only check — real English should pass this
-        assert english_text.encode("ascii", errors="replace").decode("ascii").replace("?", "") != "", (
-            "English sample text appears to be empty after ASCII normalisation"
-        )
+        assert (
+            english_text.encode("ascii", errors="replace").decode("ascii").replace("?", "") != ""
+        ), "English sample text appears to be empty after ASCII normalisation"
 
     def test_arabic_sample_text_contains_arabic_characters(self):
         """Arabic text must contain Arabic Unicode characters."""
@@ -144,8 +155,7 @@ class TestSampleTexts:
         japanese_text = SAMPLE_TEXTS.get("ja - Japanese", "")
         assert japanese_text, "Japanese sample text must not be empty"
         has_japanese = any(
-            "\u3040" <= ch <= "\u30ff" or "\u4e00" <= ch <= "\u9fff"
-            for ch in japanese_text
+            "\u3040" <= ch <= "\u30ff" or "\u4e00" <= ch <= "\u9fff" for ch in japanese_text
         )
         assert has_japanese, "Japanese sample text does not contain Japanese characters"
 
@@ -153,6 +163,7 @@ class TestSampleTexts:
 # ──────────────────────────────────────────────────────────────────────────────
 # LANGUAGE_AUDIO_DEFAULTS
 # ──────────────────────────────────────────────────────────────────────────────
+
 
 class TestLanguageAudioDefaults:
     def test_language_audio_defaults_is_dict(self):
@@ -184,9 +195,7 @@ class TestLanguageAudioDefaults:
         """All audio default values must be valid HTTP/HTTPS URLs."""
         url_pattern = re.compile(r"^https?://")
         for code, url in LANGUAGE_AUDIO_DEFAULTS.items():
-            assert isinstance(url, str), (
-                f"LANGUAGE_AUDIO_DEFAULTS[{code!r}] is not a string"
-            )
+            assert isinstance(url, str), f"LANGUAGE_AUDIO_DEFAULTS[{code!r}] is not a string"
             assert url_pattern.match(url), (
                 f"LANGUAGE_AUDIO_DEFAULTS[{code!r}] = {url!r} is not a valid URL"
             )
@@ -214,14 +223,13 @@ class TestLanguageAudioDefaults:
     def test_audio_defaults_no_duplicates(self):
         """Each language should have a unique audio file URL."""
         urls = list(LANGUAGE_AUDIO_DEFAULTS.values())
-        assert len(urls) == len(set(urls)), (
-            "LANGUAGE_AUDIO_DEFAULTS contains duplicate URL values"
-        )
+        assert len(urls) == len(set(urls)), "LANGUAGE_AUDIO_DEFAULTS contains duplicate URL values"
 
 
 # ──────────────────────────────────────────────────────────────────────────────
 # PARA_TAGS
 # ──────────────────────────────────────────────────────────────────────────────
+
 
 class TestParaTags:
     def test_para_tags_is_list(self):
@@ -242,9 +250,7 @@ class TestParaTags:
             assert isinstance(tag, str), f"Tag {tag!r} is not a string"
 
     def test_para_tags_no_duplicates(self):
-        assert len(PARA_TAGS) == len(set(PARA_TAGS)), (
-            "PARA_TAGS contains duplicate entries"
-        )
+        assert len(PARA_TAGS) == len(set(PARA_TAGS)), "PARA_TAGS contains duplicate entries"
 
     def test_para_tags_contain_laugh(self):
         assert "[laugh]" in PARA_TAGS
@@ -256,7 +262,15 @@ class TestParaTags:
         assert "[sigh]" in PARA_TAGS
 
     def test_para_tags_contain_expected_set(self):
-        expected = {"[laugh]", "[chuckle]", "[cough]", "[sigh]", "[gasp]", "[hmm]", "[clears throat]"}
+        expected = {
+            "[laugh]",
+            "[chuckle]",
+            "[cough]",
+            "[sigh]",
+            "[gasp]",
+            "[hmm]",
+            "[clears throat]",
+        }
         assert expected.issubset(set(PARA_TAGS)), (
             f"PARA_TAGS is missing expected tags: {expected - set(PARA_TAGS)}"
         )
@@ -271,6 +285,7 @@ class TestParaTags:
 # ──────────────────────────────────────────────────────────────────────────────
 # Cross-constant consistency
 # ──────────────────────────────────────────────────────────────────────────────
+
 
 class TestCrossConstantConsistency:
     def test_language_options_codes_match_audio_default_keys(self):
@@ -301,6 +316,7 @@ class TestCrossConstantConsistency:
 # Module-level purity check
 # ──────────────────────────────────────────────────────────────────────────────
 
+
 def test_languages_module_has_no_torch_import():
     """languages.py must not import torch — domain layer must be framework-free."""
     import importlib
@@ -308,9 +324,7 @@ def test_languages_module_has_no_torch_import():
 
     mod_name = "domain.languages"
     mod = sys.modules.get(mod_name) or importlib.import_module(mod_name)
-    assert "torch" not in vars(mod), (
-        "languages.py must not import torch"
-    )
+    assert "torch" not in vars(mod), "languages.py must not import torch"
 
 
 def test_languages_module_has_no_gradio_import():
@@ -320,6 +334,4 @@ def test_languages_module_has_no_gradio_import():
 
     mod_name = "domain.languages"
     mod = sys.modules.get(mod_name) or importlib.import_module(mod_name)
-    assert "gradio" not in vars(mod), (
-        "languages.py must not import gradio"
-    )
+    assert "gradio" not in vars(mod), "languages.py must not import gradio"

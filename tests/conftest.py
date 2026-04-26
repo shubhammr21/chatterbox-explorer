@@ -11,32 +11,30 @@ Fixture dependency graph:
     mock_memory_monitor        (no torch dependency)
     mock_watermark_detector    (no torch dependency)
 """
+
 from __future__ import annotations
 
-import numpy as np
-import pytest
+import importlib.util
 from unittest.mock import MagicMock
+
+import pytest
 
 from domain.types import ALL_MODEL_KEYS
 
-try:
-    import torch
-    HAS_TORCH = True
-except ImportError:
-    HAS_TORCH = False
+HAS_TORCH: bool = importlib.util.find_spec("torch") is not None
 
+from domain.models import MemoryStats
 from ports.output import (
     IAudioPreprocessor,
     IMemoryMonitor,
     IModelRepository,
     IWatermarkDetector,
 )
-from domain.models import MemoryStats
-
 
 # ──────────────────────────────────────────────────────────────────────────────
 # Low-level tensor / model mocks (require torch)
 # ──────────────────────────────────────────────────────────────────────────────
+
 
 @pytest.fixture
 def mock_wav_tensor():
@@ -47,6 +45,7 @@ def mock_wav_tensor():
     if not HAS_TORCH:
         pytest.skip("torch not available")
     import torch
+
     return torch.zeros(1, 24000)
 
 
@@ -67,6 +66,7 @@ def mock_model(mock_wav_tensor):
 # ──────────────────────────────────────────────────────────────────────────────
 # Repository / infrastructure mocks
 # ──────────────────────────────────────────────────────────────────────────────
+
 
 @pytest.fixture
 def mock_model_repo(mock_model):

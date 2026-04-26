@@ -10,6 +10,7 @@ Rules:
 - No torch, gradio, chatterbox, psutil, or huggingface_hub imports.
 - Pure dataclass behaviour only.
 """
+
 from __future__ import annotations
 
 import numpy as np
@@ -27,10 +28,10 @@ from domain.models import (
     WatermarkResult,
 )
 
-
 # ──────────────────────────────────────────────────────────────────────────────
 # TTSRequest
 # ──────────────────────────────────────────────────────────────────────────────
+
 
 class TestTTSRequest:
     def test_defaults(self):
@@ -83,6 +84,7 @@ class TestTTSRequest:
 
     def test_is_dataclass_instance(self):
         import dataclasses
+
         req = TTSRequest(text="Dataclass check")
         assert dataclasses.is_dataclass(req)
 
@@ -90,6 +92,7 @@ class TestTTSRequest:
 # ──────────────────────────────────────────────────────────────────────────────
 # TurboTTSRequest
 # ──────────────────────────────────────────────────────────────────────────────
+
 
 class TestTurboTTSRequest:
     def test_defaults(self):
@@ -137,6 +140,7 @@ class TestTurboTTSRequest:
 
     def test_is_dataclass_instance(self):
         import dataclasses
+
         req = TurboTTSRequest(text="Dataclass check")
         assert dataclasses.is_dataclass(req)
 
@@ -144,6 +148,7 @@ class TestTurboTTSRequest:
 # ──────────────────────────────────────────────────────────────────────────────
 # MultilingualTTSRequest
 # ──────────────────────────────────────────────────────────────────────────────
+
 
 class TestMultilingualTTSRequest:
     def test_defaults(self):
@@ -175,6 +180,7 @@ class TestMultilingualTTSRequest:
 
     def test_is_dataclass_instance(self):
         import dataclasses
+
         req = MultilingualTTSRequest(text="ML dataclass")
         assert dataclasses.is_dataclass(req)
 
@@ -182,6 +188,7 @@ class TestMultilingualTTSRequest:
 # ──────────────────────────────────────────────────────────────────────────────
 # VoiceConversionRequest
 # ──────────────────────────────────────────────────────────────────────────────
+
 
 class TestVoiceConversionRequest:
     def test_requires_both_paths(self):
@@ -195,11 +202,13 @@ class TestVoiceConversionRequest:
     def test_no_optional_fields(self):
         """VoiceConversionRequest has no optional parameters — both paths are mandatory."""
         import dataclasses
+
         fields = {f.name for f in dataclasses.fields(VoiceConversionRequest)}
         assert fields == {"source_audio_path", "target_voice_path"}
 
     def test_is_dataclass_instance(self):
         import dataclasses
+
         req = VoiceConversionRequest(
             source_audio_path="/a.wav",
             target_voice_path="/b.wav",
@@ -210,6 +219,7 @@ class TestVoiceConversionRequest:
 # ──────────────────────────────────────────────────────────────────────────────
 # AudioResult
 # ──────────────────────────────────────────────────────────────────────────────
+
 
 class TestAudioResult:
     def test_duration_s_basic(self):
@@ -250,6 +260,7 @@ class TestAudioResult:
 
     def test_is_dataclass_instance(self):
         import dataclasses
+
         result = AudioResult(sample_rate=16000, samples=np.zeros(100, dtype=np.float32))
         assert dataclasses.is_dataclass(result)
 
@@ -257,6 +268,7 @@ class TestAudioResult:
 # ──────────────────────────────────────────────────────────────────────────────
 # ModelStatus
 # ──────────────────────────────────────────────────────────────────────────────
+
 
 class TestModelStatus:
     def test_all_fields_stored(self):
@@ -281,10 +293,16 @@ class TestModelStatus:
 
     def test_is_dataclass_instance(self):
         import dataclasses
+
         s = ModelStatus(
-            key="vc", display_name="VC", class_name="ChatterboxVC",
-            description="", params="—", size_gb=0.4,
-            in_memory=False, on_disk=False,
+            key="vc",
+            display_name="VC",
+            class_name="ChatterboxVC",
+            description="",
+            params="—",
+            size_gb=0.4,
+            in_memory=False,
+            on_disk=False,
         )
         assert dataclasses.is_dataclass(s)
 
@@ -292,6 +310,7 @@ class TestModelStatus:
 # ──────────────────────────────────────────────────────────────────────────────
 # MemoryStats
 # ──────────────────────────────────────────────────────────────────────────────
+
 
 class TestMemoryStats:
     def test_required_fields(self):
@@ -310,16 +329,20 @@ class TestMemoryStats:
 
     def test_device_name_defaults_to_cpu(self):
         stats = MemoryStats(
-            sys_total_gb=8.0, sys_used_gb=4.0,
-            sys_avail_gb=4.0, sys_percent=50.0,
+            sys_total_gb=8.0,
+            sys_used_gb=4.0,
+            sys_avail_gb=4.0,
+            sys_percent=50.0,
             proc_rss_gb=0.5,
         )
         assert stats.device_name == "CPU"
 
     def test_optional_device_fields_default_to_none(self):
         stats = MemoryStats(
-            sys_total_gb=8.0, sys_used_gb=4.0,
-            sys_avail_gb=4.0, sys_percent=50.0,
+            sys_total_gb=8.0,
+            sys_used_gb=4.0,
+            sys_avail_gb=4.0,
+            sys_percent=50.0,
             proc_rss_gb=0.5,
         )
         assert stats.device_driver_gb is None
@@ -327,8 +350,10 @@ class TestMemoryStats:
 
     def test_device_fields_can_be_set(self):
         stats = MemoryStats(
-            sys_total_gb=32.0, sys_used_gb=10.0,
-            sys_avail_gb=22.0, sys_percent=31.25,
+            sys_total_gb=32.0,
+            sys_used_gb=10.0,
+            sys_avail_gb=22.0,
+            sys_percent=31.25,
             proc_rss_gb=2.0,
             device_name="MPS",
             device_driver_gb=4.5,
@@ -340,9 +365,12 @@ class TestMemoryStats:
 
     def test_is_dataclass_instance(self):
         import dataclasses
+
         stats = MemoryStats(
-            sys_total_gb=8.0, sys_used_gb=4.0,
-            sys_avail_gb=4.0, sys_percent=50.0,
+            sys_total_gb=8.0,
+            sys_used_gb=4.0,
+            sys_avail_gb=4.0,
+            sys_percent=50.0,
             proc_rss_gb=0.5,
         )
         assert dataclasses.is_dataclass(stats)
@@ -352,10 +380,17 @@ class TestMemoryStats:
 # WatermarkResult
 # ──────────────────────────────────────────────────────────────────────────────
 
+
 class TestWatermarkResult:
-    @pytest.mark.parametrize("verdict", [
-        "detected", "not_detected", "inconclusive", "unavailable",
-    ])
+    @pytest.mark.parametrize(
+        "verdict",
+        [
+            "detected",
+            "not_detected",
+            "inconclusive",
+            "unavailable",
+        ],
+    )
     def test_valid_verdicts(self, verdict: str):
         result = WatermarkResult(
             score=0.9,
@@ -389,9 +424,12 @@ class TestWatermarkResult:
 
     def test_is_dataclass_instance(self):
         import dataclasses
+
         result = WatermarkResult(
-            score=0.0, verdict="unavailable",
-            message="", available=False,
+            score=0.0,
+            verdict="unavailable",
+            message="",
+            available=False,
         )
         assert dataclasses.is_dataclass(result)
 
@@ -399,6 +437,7 @@ class TestWatermarkResult:
 # ──────────────────────────────────────────────────────────────────────────────
 # AppConfig
 # ──────────────────────────────────────────────────────────────────────────────
+
 
 class TestAppConfig:
     def test_fields(self):
@@ -417,6 +456,7 @@ class TestAppConfig:
 
     def test_is_dataclass_instance(self):
         import dataclasses
+
         cfg = AppConfig(device="cpu", watermark_available=False)
         assert dataclasses.is_dataclass(cfg)
 
@@ -424,6 +464,7 @@ class TestAppConfig:
 # ──────────────────────────────────────────────────────────────────────────────
 # Cross-model: no framework contamination
 # ──────────────────────────────────────────────────────────────────────────────
+
 
 def test_domain_models_module_has_no_torch_import():
     """Ensure models.py never imports torch at module level."""

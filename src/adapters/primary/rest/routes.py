@@ -40,6 +40,7 @@ In practice, for a single-process deployment the services are stateful
 singletons (the models live in GPU memory), so Depends(get_tts_service)
 should resolve to the same object on every request.
 """
+
 from __future__ import annotations
 
 

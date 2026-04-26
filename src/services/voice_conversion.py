@@ -7,6 +7,7 @@ Allowed imports: stdlib + numpy + ports/domain models.
 Forbidden: torch, gradio, chatterbox — any of these appearing here is an
 architecture violation.
 """
+
 from __future__ import annotations
 
 import numpy as np
@@ -76,10 +77,6 @@ class VoiceConversionService:
     def _validate(request: VoiceConversionRequest) -> None:
         """Raise ValueError for any missing/empty path."""
         if not request.source_audio_path:
-            raise ValueError(
-                "source_audio_path is required for voice conversion."
-            )
+            raise ValueError("source_audio_path is required for voice conversion.")
         if not request.target_voice_path:
-            raise ValueError(
-                "target_voice_path is required for voice conversion."
-            )
+            raise ValueError("target_voice_path is required for voice conversion.")

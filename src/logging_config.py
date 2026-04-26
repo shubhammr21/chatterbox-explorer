@@ -13,6 +13,7 @@ Call configure() exactly once, as the very first thing in cli.main(),
 before any library with an eager logger (huggingface_hub, transformers,
 diffusers) is imported.
 """
+
 from __future__ import annotations
 
 

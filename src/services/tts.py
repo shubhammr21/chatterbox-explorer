@@ -14,10 +14,11 @@ Services:
   TurboTTSService        — ChatterboxTurboTTS (fast, low-VRAM)
   MultilingualTTSService — ChatterboxMultilingualTTS (23 languages)
 """
+
 from __future__ import annotations
 
+from collections.abc import Callable, Iterator
 import re
-from typing import Callable, Iterator
 
 import numpy as np
 
@@ -29,10 +30,10 @@ from domain.models import (
 )
 from ports.output import IAudioPreprocessor, IModelRepository
 
-
 # ──────────────────────────────────────────────────────────────────────────────
 # Pure helper — no dependencies, fully testable in isolation
 # ──────────────────────────────────────────────────────────────────────────────
+
 
 def split_sentences(text: str) -> list[str]:
     """Split *text* on sentence-ending punctuation (``.``, ``!``, ``?``).
@@ -59,6 +60,7 @@ def split_sentences(text: str) -> list[str]:
 # Private conversion helper
 # ──────────────────────────────────────────────────────────────────────────────
 
+
 def _tensor_to_numpy(wav) -> np.ndarray:
     """Convert a model output tensor to a 1-D float32 NumPy array.
 
@@ -71,6 +73,7 @@ def _tensor_to_numpy(wav) -> np.ndarray:
 # ──────────────────────────────────────────────────────────────────────────────
 # Standard TTS
 # ──────────────────────────────────────────────────────────────────────────────
+
 
 class TTSService:
     """Domain service for Standard ChatterboxTTS generation.
@@ -169,6 +172,7 @@ class TTSService:
 # Turbo TTS
 # ──────────────────────────────────────────────────────────────────────────────
 
+
 class TurboTTSService:
     """Domain service for ChatterboxTurboTTS generation.
 
@@ -221,9 +225,7 @@ class TurboTTSService:
                 norm_loudness=request.norm_loudness,
             )
         except AssertionError as exc:
-            raise ValueError(
-                f"Reference audio must be longer than 5 seconds: {exc}"
-            ) from exc
+            raise ValueError(f"Reference audio must be longer than 5 seconds: {exc}") from exc
 
         return AudioResult(
             sample_rate=model.sr,
@@ -261,9 +263,7 @@ class TurboTTSService:
             try:
                 wav = model.generate(sentence, **gen_kwargs)
             except AssertionError as exc:
-                raise ValueError(
-                    f"Reference audio must be longer than 5 seconds: {exc}"
-                ) from exc
+                raise ValueError(f"Reference audio must be longer than 5 seconds: {exc}") from exc
             buf.append(_tensor_to_numpy(wav))
             yield AudioResult(
                 sample_rate=model.sr,
@@ -274,6 +274,7 @@ class TurboTTSService:
 # ──────────────────────────────────────────────────────────────────────────────
 # Multilingual TTS
 # ──────────────────────────────────────────────────────────────────────────────
+
 
 class MultilingualTTSService:
     """Domain service for ChatterboxMultilingualTTS generation (23 languages).

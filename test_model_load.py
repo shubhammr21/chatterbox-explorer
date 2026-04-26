@@ -18,7 +18,6 @@ import warnings
 import numpy as np
 import torch
 
-
 # ── 0. Apply the full suppression stack (mirrors app.py exactly) ──────────────
 
 # Silence noisy third-party loggers
@@ -60,6 +59,7 @@ warnings.filterwarnings(
 # Use transformers' own verbosity API to silence sdpa and similar internal logs
 try:
     import transformers as _transformers
+
     _transformers.logging.set_verbosity_error()
 except ImportError:
     pass
@@ -68,17 +68,18 @@ except ImportError:
 # If we call setLevel(ERROR) before that import, the library overwrites our setting.
 # Fix: force-import huggingface_hub first, then use its own public verbosity API.
 try:
-    import huggingface_hub as _hf_hub                   # force initialization first
     from huggingface_hub import logging as _hf_logging  # use the library's own API
-    _hf_logging.set_verbosity_error()                   # overrides the library's WARNING default
+
+    _hf_logging.set_verbosity_error()  # overrides the library's WARNING default
 except ImportError:
     pass
 
-logging.getLogger("huggingface_hub").setLevel(logging.ERROR)          # belt-and-suspenders
+logging.getLogger("huggingface_hub").setLevel(logging.ERROR)  # belt-and-suspenders
 logging.getLogger("huggingface_hub.utils._http").setLevel(logging.ERROR)  # target the exact emitter
 
 
 # ── 1. Basic setup ────────────────────────────────────────────────────────────
+
 
 def detect_device() -> str:
     if torch.cuda.is_available():
@@ -94,13 +95,13 @@ PASS = "✅"
 FAIL = "❌"
 WARN = "⚠ "
 
-print(f"\n{'='*62}")
-print(f"  Chatterbox TTS — Model Load & Generation Test")
-print(f"{'='*62}")
+print(f"\n{'=' * 62}")
+print("  Chatterbox TTS — Model Load & Generation Test")
+print(f"{'=' * 62}")
 print(f"  Device  : {DEVICE.upper()}")
 print(f"  Python  : {sys.version.split()[0]}")
 print(f"  HF_TOKEN: {'set' if os.environ.get('HF_TOKEN') else 'not set (public rate limits)'}")
-print(f"{'='*62}\n")
+print(f"{'=' * 62}\n")
 
 all_passed = True
 
@@ -170,7 +171,7 @@ else:
 step(2, "Loading ChatterboxTTS (Standard — 500M)")
 
 try:
-    from chatterbox.tts import ChatterboxTTS  # noqa: E402
+    from chatterbox.tts import ChatterboxTTS
 
     model_tts = ChatterboxTTS.from_pretrained(DEVICE)
     wm_cls = type(model_tts.watermarker).__name__
@@ -190,6 +191,7 @@ try:
 except Exception as exc:
     fail(f"FAILED: {exc}")
     import traceback
+
     traceback.print_exc()
     sys.exit(1)
 
@@ -199,7 +201,7 @@ except Exception as exc:
 step(3, "Loading ChatterboxTurboTTS (Turbo — 350M)")
 
 try:
-    from chatterbox.tts_turbo import ChatterboxTurboTTS  # noqa: E402
+    from chatterbox.tts_turbo import ChatterboxTurboTTS
 
     model_turbo = ChatterboxTurboTTS.from_pretrained(DEVICE)
     wm_cls = type(model_turbo.watermarker).__name__
@@ -219,6 +221,7 @@ try:
 except Exception as exc:
     fail(f"FAILED: {exc}")
     import traceback
+
     traceback.print_exc()
     sys.exit(1)
 
@@ -242,6 +245,7 @@ try:
 except Exception as exc:
     fail(f"FAILED: {exc}")
     import traceback
+
     traceback.print_exc()
     sys.exit(1)
 
@@ -256,7 +260,7 @@ try:
 
     # Chatterbox always calls with sample_rate as a keyword argument
     result = wm.apply_watermark(dummy, sample_rate=24000)
-    score  = wm.get_watermark(dummy, sample_rate=24000)
+    score = wm.get_watermark(dummy, sample_rate=24000)
 
     assert result.shape == dummy.shape, "Shape mismatch after apply_watermark"
 
@@ -269,6 +273,7 @@ try:
 except Exception as exc:
     fail(f"FAILED: {exc}")
     import traceback
+
     traceback.print_exc()
     sys.exit(1)
 
@@ -286,7 +291,9 @@ try:
         # Do NOT call warnings.simplefilter('always') here — that would
         # override our filterwarnings rules and capture everything again.
         # Instead, keep the current filter stack and only record what leaks through.
-        warnings.simplefilter("always", DeprecationWarning)  # we do want to know about deprecations in our own code
+        warnings.simplefilter(
+            "always", DeprecationWarning
+        )  # we do want to know about deprecations in our own code
 
         wav_audit = model_tts.generate(
             "Auditing for unexpected warnings during generation.",
@@ -296,19 +303,13 @@ try:
 
     # Filter out DeprecationWarnings from third-party packages (not our code)
     our_warnings = [
-        w for w in caught
-        if not any(
-            pkg in (w.filename or "")
-            for pkg in ["site-packages", "cpython", "lib/python"]
-        )
+        w
+        for w in caught
+        if not any(pkg in (w.filename or "") for pkg in ["site-packages", "cpython", "lib/python"])
     ]
 
     third_party_leaks = [
-        w for w in caught
-        if any(
-            pkg in (w.filename or "")
-            for pkg in ["site-packages", "cpython"]
-        )
+        w for w in caught if any(pkg in (w.filename or "") for pkg in ["site-packages", "cpython"])
     ]
 
     if third_party_leaks:
@@ -331,6 +332,7 @@ try:
 except Exception as exc:
     fail(f"FAILED: {exc}")
     import traceback
+
     traceback.print_exc()
     sys.exit(1)
 
@@ -338,15 +340,21 @@ except Exception as exc:
 # ── 8. Final summary ──────────────────────────────────────────────────────────
 
 verdict = PASS if all_passed else FAIL
-print(f"\n{'='*62}")
+print(f"\n{'=' * 62}")
 print(f"  {verdict}  All checks {'passed' if all_passed else 'FAILED'}")
-print(f"{'='*62}")
+print(f"{'=' * 62}")
 print(f"  Device             : {DEVICE.upper()}")
-print(f"  Standard TTS       : {PASS} loaded and generated ({wav_tts.shape[-1] / model_tts.sr:.2f}s)")
-print(f"  Turbo TTS          : {PASS} loaded and generated ({wav_turbo.shape[-1] / model_turbo.sr:.2f}s)")
+print(
+    f"  Standard TTS       : {PASS} loaded and generated ({wav_tts.shape[-1] / model_tts.sr:.2f}s)"
+)
+print(
+    f"  Turbo TTS          : {PASS} loaded and generated ({wav_turbo.shape[-1] / model_turbo.sr:.2f}s)"
+)
 print(f"  float32 → int16    : {PASS} clean conversion, no Gradio UserWarning")
-print(f"  PerTh watermarker  : {'✅ full impl' if WATERMARK_AVAILABLE else '⚠  no-op (open-source resemble-perth)'}")
-print(f"{'='*62}\n")
+print(
+    f"  PerTh watermarker  : {'✅ full impl' if WATERMARK_AVAILABLE else '⚠  no-op (open-source resemble-perth)'}"
+)
+print(f"{'=' * 62}\n")
 
 if not all_passed:
     sys.exit(1)

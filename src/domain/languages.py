@@ -7,8 +7,8 @@ Extracted verbatim from app.py — no framework dependencies allowed.
 Allowed imports: stdlib only (none needed here — pure data).
 Forbidden: torch, gradio, chatterbox, psutil, huggingface_hub.
 """
-from __future__ import annotations
 
+from __future__ import annotations
 
 # ──────────────────────────────────────────────────────────────────────────────
 # Language options
@@ -50,29 +50,29 @@ LANGUAGE_OPTIONS: list[str] = [
 # Source: official Chatterbox multilingual demo.
 
 SAMPLE_TEXTS: dict[str, str] = {
-    "ar - Arabic":    "في الشهر الماضي، وصلنا إلى معلم جديد بمليارين من المشاهدات على قناتنا على يوتيوب.",
-    "da - Danish":    "Sidste måned nåede vi en ny milepæl med to milliarder visninger på vores YouTube-kanal.",
-    "de - German":    "Letzten Monat haben wir einen neuen Meilenstein erreicht: zwei Milliarden Aufrufe auf unserem YouTube-Kanal.",
-    "el - Greek":     "Τον περασμένο μήνα, φτάσαμε σε ένα νέο ορόσημο με δύο δισεκατομμύρια προβολές στο κανάλι μας στο YouTube.",
-    "en - English":   "Last month, we reached a new milestone with two billion views on our YouTube channel.",
-    "es - Spanish":   "El mes pasado alcanzamos un nuevo hito: dos mil millones de visualizaciones en nuestro canal de YouTube.",
-    "fi - Finnish":   "Viime kuussa saavutimme uuden virstanpylvään kahden miljardin katselukerran kanssa YouTube-kanavallamme.",
-    "fr - French":    "Le mois dernier, nous avons atteint un nouveau jalon avec deux milliards de vues sur notre chaîne YouTube.",
-    "he - Hebrew":    "בחודש שעבר הגענו לאבן דרך חדשה עם שני מיליארד צפיות בערוץ היוטיוב שלנו.",
-    "hi - Hindi":     "पिछले महीने हमने एक नया मील का पत्थर छुआ: हमारे YouTube चैनल पर दो अरब व्यूज़।",
-    "it - Italian":   "Il mese scorso abbiamo raggiunto un nuovo traguardo: due miliardi di visualizzazioni sul nostro canale YouTube.",
-    "ja - Japanese":  "先月、私たちのYouTubeチャンネルで二十億回の再生回数という新たなマイルストーンに到達しました。",
-    "ko - Korean":    "지난달 우리는 유튜브 채널에서 이십억 조회수라는 새로운 이정표에 도달했습니다.",
-    "ms - Malay":     "Bulan lepas, kami mencapai pencapaian baru dengan dua bilion tontonan di saluran YouTube kami.",
-    "nl - Dutch":     "Vorige maand bereikten we een nieuwe mijlpaal met twee miljard weergaven op ons YouTube-kanaal.",
+    "ar - Arabic": "في الشهر الماضي، وصلنا إلى معلم جديد بمليارين من المشاهدات على قناتنا على يوتيوب.",
+    "da - Danish": "Sidste måned nåede vi en ny milepæl med to milliarder visninger på vores YouTube-kanal.",
+    "de - German": "Letzten Monat haben wir einen neuen Meilenstein erreicht: zwei Milliarden Aufrufe auf unserem YouTube-Kanal.",
+    "el - Greek": "Τον περασμένο μήνα, φτάσαμε σε ένα νέο ορόσημο με δύο δισεκατομμύρια προβολές στο κανάλι μας στο YouTube.",
+    "en - English": "Last month, we reached a new milestone with two billion views on our YouTube channel.",
+    "es - Spanish": "El mes pasado alcanzamos un nuevo hito: dos mil millones de visualizaciones en nuestro canal de YouTube.",
+    "fi - Finnish": "Viime kuussa saavutimme uuden virstanpylvään kahden miljardin katselukerran kanssa YouTube-kanavallamme.",
+    "fr - French": "Le mois dernier, nous avons atteint un nouveau jalon avec deux milliards de vues sur notre chaîne YouTube.",
+    "he - Hebrew": "בחודש שעבר הגענו לאבן דרך חדשה עם שני מיליארד צפיות בערוץ היוטיוב שלנו.",
+    "hi - Hindi": "पिछले महीने हमने एक नया मील का पत्थर छुआ: हमारे YouTube चैनल पर दो अरब व्यूज़।",
+    "it - Italian": "Il mese scorso abbiamo raggiunto un nuovo traguardo: due miliardi di visualizzazioni sul nostro canale YouTube.",
+    "ja - Japanese": "先月、私たちのYouTubeチャンネルで二十億回の再生回数という新たなマイルストーンに到達しました。",
+    "ko - Korean": "지난달 우리는 유튜브 채널에서 이십억 조회수라는 새로운 이정표에 도달했습니다.",
+    "ms - Malay": "Bulan lepas, kami mencapai pencapaian baru dengan dua bilion tontonan di saluran YouTube kami.",
+    "nl - Dutch": "Vorige maand bereikten we een nieuwe mijlpaal met twee miljard weergaven op ons YouTube-kanaal.",
     "no - Norwegian": "Forrige måned nådde vi en ny milepæl med to milliarder visninger på YouTube-kanalen vår.",
-    "pl - Polish":    "W zeszłym miesiącu osiągnęliśmy nowy kamień milowy z dwoma miliardami wyświetleń na naszym kanale YouTube.",
-    "pt - Portuguese":"No mês passado, alcançámos um novo marco: dois mil milhões de visualizações no nosso canal do YouTube.",
-    "ru - Russian":   "В прошлом месяце мы достигли нового рубежа: два миллиарда просмотров на нашем YouTube-канале.",
-    "sv - Swedish":   "Förra månaden nådde vi en ny milstolpe med två miljarder visningar på vår YouTube-kanal.",
-    "sw - Swahili":   "Mwezi uliopita, tulifika hatua mpya ya maoni ya bilioni mbili kwenye kituo chetu cha YouTube.",
-    "tr - Turkish":   "Geçen ay YouTube kanalımızda iki milyar görüntüleme ile yeni bir dönüm noktasına ulaştık.",
-    "zh - Chinese":   "上个月，我们达到了一个新的里程碑，我们的YouTube频道观看次数达到了二十亿次。",
+    "pl - Polish": "W zeszłym miesiącu osiągnęliśmy nowy kamień milowy z dwoma miliardami wyświetleń na naszym kanale YouTube.",
+    "pt - Portuguese": "No mês passado, alcançámos um novo marco: dois mil milhões de visualizações no nosso canal do YouTube.",
+    "ru - Russian": "В прошлом месяце мы достигли нового рубежа: два миллиарда просмотров на нашем YouTube-канале.",
+    "sv - Swedish": "Förra månaden nådde vi en ny milstolpe med två miljarder visningar på vår YouTube-kanal.",
+    "sw - Swahili": "Mwezi uliopita, tulifika hatua mpya ya maoni ya bilioni mbili kwenye kituo chetu cha YouTube.",
+    "tr - Turkish": "Geçen ay YouTube kanalımızda iki milyar görüntüleme ile yeni bir dönüm noktasına ulaştık.",
+    "zh - Chinese": "上个月，我们达到了一个新的里程碑，我们的YouTube频道观看次数达到了二十亿次。",
 }
 
 

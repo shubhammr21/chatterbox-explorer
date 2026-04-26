@@ -24,6 +24,7 @@ Design constraints
    the only runtime value that cannot be derived inside the function itself
    (it comes from the PerTh patch check performed in cli.main()).
 """
+
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
@@ -34,7 +35,7 @@ if TYPE_CHECKING:
     from domain.models import AppConfig
 
 
-def build_app(watermark_available: bool) -> "tuple[gr.Blocks, AppConfig]":
+def build_app(watermark_available: bool) -> tuple[gr.Blocks, AppConfig]:
     """Wire all adapters → services → Gradio primary adapter.
 
     All imports are deliberately placed inside this function body so that
@@ -62,43 +63,43 @@ def build_app(watermark_available: bool) -> "tuple[gr.Blocks, AppConfig]":
         :class:`~chatterbox_explorer.domain.models.AppConfig`.
     """
     # ── Secondary adapters (infrastructure layer) ──────────────────────────
-    from adapters.secondary.device import detect_device, set_seed
-    from adapters.secondary.model_loader import ChatterboxModelLoader
     from adapters.secondary.audio import TorchAudioPreprocessor
+    from adapters.secondary.device import detect_device, set_seed
     from adapters.secondary.memory import PsutilMemoryMonitor
+    from adapters.secondary.model_loader import ChatterboxModelLoader
     from adapters.secondary.watermark import PerThWatermarkDetector
-
-    # ── Domain services ────────────────────────────────────────────────────
-    from services.tts import (
-        TTSService,
-        TurboTTSService,
-        MultilingualTTSService,
-    )
-    from services.voice_conversion import VoiceConversionService
-    from services.model_manager import ModelManagerService
-    from services.watermark import WatermarkService
 
     # ── Domain models ──────────────────────────────────────────────────────
     from domain.models import AppConfig
+    from services.model_manager import ModelManagerService
+
+    # ── Domain services ────────────────────────────────────────────────────
+    from services.tts import (
+        MultilingualTTSService,
+        TTSService,
+        TurboTTSService,
+    )
+    from services.voice_conversion import VoiceConversionService
+    from services.watermark import WatermarkService
 
     # ── Step 1: device detection ───────────────────────────────────────────
     device = detect_device()
 
     # ── Step 2: secondary adapters ─────────────────────────────────────────
-    model_repo   = ChatterboxModelLoader(device)
+    model_repo = ChatterboxModelLoader(device)
     preprocessor = TorchAudioPreprocessor()
-    mem_monitor  = PsutilMemoryMonitor(device)
-    wm_detector  = PerThWatermarkDetector(available=watermark_available)
+    mem_monitor = PsutilMemoryMonitor(device)
+    wm_detector = PerThWatermarkDetector(available=watermark_available)
 
     # ── Step 3: domain services ────────────────────────────────────────────
     # Each service receives only the port ABCs it needs — never the concrete
     # adapter classes — preserving the hexagonal architecture boundary.
-    tts_svc   = TTSService(model_repo, preprocessor, seed_setter=set_seed)
+    tts_svc = TTSService(model_repo, preprocessor, seed_setter=set_seed)
     turbo_svc = TurboTTSService(model_repo, preprocessor, seed_setter=set_seed)
-    mtl_svc   = MultilingualTTSService(model_repo, preprocessor, seed_setter=set_seed)
-    vc_svc    = VoiceConversionService(model_repo, preprocessor)
-    mgr_svc   = ModelManagerService(model_repo, mem_monitor)
-    wm_svc    = WatermarkService(wm_detector)
+    mtl_svc = MultilingualTTSService(model_repo, preprocessor, seed_setter=set_seed)
+    vc_svc = VoiceConversionService(model_repo, preprocessor)
+    mgr_svc = ModelManagerService(model_repo, mem_monitor)
+    wm_svc = WatermarkService(wm_detector)
 
     # ── Step 4: application config ─────────────────────────────────────────
     config = AppConfig(device=device, watermark_available=watermark_available)
@@ -106,7 +107,7 @@ def build_app(watermark_available: bool) -> "tuple[gr.Blocks, AppConfig]":
     # ── Step 5: primary adapter — Gradio UI ───────────────────────────────
     # Imported last so that all compat patches are active before any
     # Gradio component or chatterbox model code is touched.
-    from adapters.primary.gradio.ui import build_demo  # noqa: PLC0415
+    from adapters.primary.gradio.ui import build_demo
 
     demo = build_demo(
         tts=tts_svc,

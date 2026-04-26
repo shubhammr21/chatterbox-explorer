@@ -12,6 +12,7 @@ Covers:
 
 No real models are loaded; all infra is faked via conftest.py fixtures.
 """
+
 from __future__ import annotations
 
 import pytest
@@ -19,10 +20,10 @@ import pytest
 from domain.models import MemoryStats, ModelStatus
 from services.model_manager import ModelManagerService
 
-
 # ──────────────────────────────────────────────────────────────────────────────
 # load()
 # ──────────────────────────────────────────────────────────────────────────────
+
 
 class TestModelManagerLoad:
     def test_load_returns_loaded_message(self, mock_model_repo, mock_memory_monitor):
@@ -36,9 +37,7 @@ class TestModelManagerLoad:
         mock_model_repo.get_model.assert_called_once_with("tts")
         assert "loaded" in result.lower()
 
-    def test_load_already_loaded_returns_info_message(
-        self, mock_model_repo, mock_memory_monitor
-    ):
+    def test_load_already_loaded_returns_info_message(self, mock_model_repo, mock_memory_monitor):
         """When the model is already in memory, load() must NOT call get_model
         and must return a message containing the word 'already'."""
         mock_model_repo.is_loaded.return_value = True
@@ -49,9 +48,7 @@ class TestModelManagerLoad:
         mock_model_repo.get_model.assert_not_called()
         assert "already" in result.lower()
 
-    def test_load_includes_display_name_in_message(
-        self, mock_model_repo, mock_memory_monitor
-    ):
+    def test_load_includes_display_name_in_message(self, mock_model_repo, mock_memory_monitor):
         """The returned message should mention the model's display name."""
         mock_model_repo.is_loaded.return_value = False
 
@@ -61,9 +58,7 @@ class TestModelManagerLoad:
         # mock get_display_name returns k.upper() → "TTS"
         assert "TTS" in result
 
-    def test_load_already_loaded_includes_display_name(
-        self, mock_model_repo, mock_memory_monitor
-    ):
+    def test_load_already_loaded_includes_display_name(self, mock_model_repo, mock_memory_monitor):
         mock_model_repo.is_loaded.return_value = True
 
         svc = ModelManagerService(mock_model_repo, mock_memory_monitor)
@@ -71,9 +66,7 @@ class TestModelManagerLoad:
 
         assert "TURBO" in result
 
-    def test_load_raises_runtime_error_on_repo_failure(
-        self, mock_model_repo, mock_memory_monitor
-    ):
+    def test_load_raises_runtime_error_on_repo_failure(self, mock_model_repo, mock_memory_monitor):
         """If get_model raises, load() must re-raise as RuntimeError."""
         mock_model_repo.is_loaded.return_value = False
         mock_model_repo.get_model.side_effect = RuntimeError("weights missing")
@@ -87,10 +80,9 @@ class TestModelManagerLoad:
 # unload()
 # ──────────────────────────────────────────────────────────────────────────────
 
+
 class TestModelManagerUnload:
-    def test_unload_returns_unloaded_message(
-        self, mock_model_repo, mock_memory_monitor
-    ):
+    def test_unload_returns_unloaded_message(self, mock_model_repo, mock_memory_monitor):
         """When the model is in memory, unload() calls repo.unload and returns
         a message containing the word 'unloaded'."""
         mock_model_repo.is_loaded.return_value = True
@@ -101,9 +93,7 @@ class TestModelManagerUnload:
         mock_model_repo.unload.assert_called_once_with("tts")
         assert "unloaded" in result.lower()
 
-    def test_unload_not_loaded_returns_info_message(
-        self, mock_model_repo, mock_memory_monitor
-    ):
+    def test_unload_not_loaded_returns_info_message(self, mock_model_repo, mock_memory_monitor):
         """When the model is not in memory, unload() must NOT call repo.unload
         and must return a message indicating it was not loaded."""
         mock_model_repo.is_loaded.return_value = False
@@ -114,9 +104,7 @@ class TestModelManagerUnload:
         mock_model_repo.unload.assert_not_called()
         assert "not" in result.lower()
 
-    def test_unload_includes_display_name_in_message(
-        self, mock_model_repo, mock_memory_monitor
-    ):
+    def test_unload_includes_display_name_in_message(self, mock_model_repo, mock_memory_monitor):
         mock_model_repo.is_loaded.return_value = True
 
         svc = ModelManagerService(mock_model_repo, mock_memory_monitor)
@@ -124,9 +112,7 @@ class TestModelManagerUnload:
 
         assert "TTS" in result
 
-    def test_unload_not_loaded_includes_display_name(
-        self, mock_model_repo, mock_memory_monitor
-    ):
+    def test_unload_not_loaded_includes_display_name(self, mock_model_repo, mock_memory_monitor):
         mock_model_repo.is_loaded.return_value = False
 
         svc = ModelManagerService(mock_model_repo, mock_memory_monitor)
@@ -139,10 +125,9 @@ class TestModelManagerUnload:
 # download()
 # ──────────────────────────────────────────────────────────────────────────────
 
+
 class TestModelManagerDownload:
-    def test_download_yields_progress_lines(
-        self, mock_model_repo, mock_memory_monitor
-    ):
+    def test_download_yields_progress_lines(self, mock_model_repo, mock_memory_monitor):
         """download() must delegate to repo.download() and pass every yielded
         line through unchanged."""
         expected_lines = ["Downloading... 50%", "Downloading... 100%", "Done."]
@@ -163,9 +148,7 @@ class TestModelManagerDownload:
 
         assert result == []
 
-    def test_download_forwards_key_to_repo(
-        self, mock_model_repo, mock_memory_monitor
-    ):
+    def test_download_forwards_key_to_repo(self, mock_model_repo, mock_memory_monitor):
         mock_model_repo.download.return_value = iter(["line"])
 
         svc = ModelManagerService(mock_model_repo, mock_memory_monitor)
@@ -178,10 +161,9 @@ class TestModelManagerDownload:
 # get_all_status()
 # ──────────────────────────────────────────────────────────────────────────────
 
+
 class TestModelManagerGetAllStatus:
-    def test_get_all_status_returns_model_status_list(
-        self, mock_model_repo, mock_memory_monitor
-    ):
+    def test_get_all_status_returns_model_status_list(self, mock_model_repo, mock_memory_monitor):
         """get_all_status() must return one ModelStatus per key."""
         svc = ModelManagerService(mock_model_repo, mock_memory_monitor)
         statuses = svc.get_all_status()
@@ -190,17 +172,13 @@ class TestModelManagerGetAllStatus:
         assert len(statuses) == 4
         assert all(isinstance(s, ModelStatus) for s in statuses)
 
-    def test_get_all_status_correct_keys(
-        self, mock_model_repo, mock_memory_monitor
-    ):
+    def test_get_all_status_correct_keys(self, mock_model_repo, mock_memory_monitor):
         svc = ModelManagerService(mock_model_repo, mock_memory_monitor)
         statuses = svc.get_all_status()
         keys = [s.key for s in statuses]
         assert keys == ["tts", "turbo", "multilingual", "vc"]
 
-    def test_get_all_status_display_names(
-        self, mock_model_repo, mock_memory_monitor
-    ):
+    def test_get_all_status_display_names(self, mock_model_repo, mock_memory_monitor):
         """display_name comes from repo.get_display_name (k.upper() in mock)."""
         svc = ModelManagerService(mock_model_repo, mock_memory_monitor)
         statuses = svc.get_all_status()
@@ -210,9 +188,7 @@ class TestModelManagerGetAllStatus:
         assert statuses[2].display_name == "MULTILINGUAL"
         assert statuses[3].display_name == "VC"
 
-    def test_get_all_status_metadata_fields(
-        self, mock_model_repo, mock_memory_monitor
-    ):
+    def test_get_all_status_metadata_fields(self, mock_model_repo, mock_memory_monitor):
         """Metadata dict fields must be mapped to ModelStatus fields."""
         svc = ModelManagerService(mock_model_repo, mock_memory_monitor)
         status = svc.get_all_status()[0]
@@ -222,9 +198,7 @@ class TestModelManagerGetAllStatus:
         assert status.description == "test model"
         assert status.class_name == "MockModel"
 
-    def test_get_all_status_in_memory_flag(
-        self, mock_model_repo, mock_memory_monitor
-    ):
+    def test_get_all_status_in_memory_flag(self, mock_model_repo, mock_memory_monitor):
         """in_memory must reflect repo.is_loaded()."""
         mock_model_repo.is_loaded.return_value = True
 
@@ -233,9 +207,7 @@ class TestModelManagerGetAllStatus:
 
         assert all(s.in_memory is True for s in statuses)
 
-    def test_get_all_status_on_disk_flag(
-        self, mock_model_repo, mock_memory_monitor
-    ):
+    def test_get_all_status_on_disk_flag(self, mock_model_repo, mock_memory_monitor):
         """on_disk must reflect repo.is_cached_on_disk()."""
         mock_model_repo.is_cached_on_disk.return_value = True
 
@@ -244,9 +216,7 @@ class TestModelManagerGetAllStatus:
 
         assert all(s.on_disk is True for s in statuses)
 
-    def test_get_all_status_not_loaded_by_default(
-        self, mock_model_repo, mock_memory_monitor
-    ):
+    def test_get_all_status_not_loaded_by_default(self, mock_model_repo, mock_memory_monitor):
         """Default conftest mock has is_loaded=False and is_cached_on_disk=False."""
         svc = ModelManagerService(mock_model_repo, mock_memory_monitor)
         statuses = svc.get_all_status()
@@ -259,10 +229,9 @@ class TestModelManagerGetAllStatus:
 # get_memory_stats()
 # ──────────────────────────────────────────────────────────────────────────────
 
+
 class TestModelManagerGetMemoryStats:
-    def test_get_memory_stats_delegates_to_monitor(
-        self, mock_model_repo, mock_memory_monitor
-    ):
+    def test_get_memory_stats_delegates_to_monitor(self, mock_model_repo, mock_memory_monitor):
         """get_memory_stats() must call monitor.get_stats() exactly once."""
         svc = ModelManagerService(mock_model_repo, mock_memory_monitor)
         svc.get_memory_stats()
@@ -277,9 +246,7 @@ class TestModelManagerGetMemoryStats:
 
         assert isinstance(stats, MemoryStats)
 
-    def test_get_memory_stats_correct_values(
-        self, mock_model_repo, mock_memory_monitor
-    ):
+    def test_get_memory_stats_correct_values(self, mock_model_repo, mock_memory_monitor):
         """Values must match what the mock monitor returns."""
         svc = ModelManagerService(mock_model_repo, mock_memory_monitor)
         stats = svc.get_memory_stats()

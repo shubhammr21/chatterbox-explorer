@@ -1,11 +1,11 @@
 """System and device memory monitoring."""
-import logging
 
-from domain.types import DeviceType
+import logging
 import time
 from typing import ClassVar
 
 from domain.models import MemoryStats
+from domain.types import DeviceType
 from ports.output import IMemoryMonitor
 
 log = logging.getLogger(__name__)
@@ -69,11 +69,11 @@ class PsutilMemoryMonitor(IMemoryMonitor):
         rss = psutil.Process().memory_info().rss
 
         stats = MemoryStats(
-            sys_total_gb=round(vm.total / 1024 ** 3, 1),
-            sys_used_gb=round(vm.used / 1024 ** 3, 1),
-            sys_avail_gb=round(vm.available / 1024 ** 3, 1),
-            sys_percent=vm.percent,          # (total − available) / total × 100
-            proc_rss_gb=round(rss / 1024 ** 3, 2),
+            sys_total_gb=round(vm.total / 1024**3, 1),
+            sys_used_gb=round(vm.used / 1024**3, 1),
+            sys_avail_gb=round(vm.available / 1024**3, 1),
+            sys_percent=vm.percent,  # (total − available) / total × 100
+            proc_rss_gb=round(rss / 1024**3, 2),
         )
 
         # ── Device memory ─────────────────────────────────────────────────────
@@ -81,23 +81,15 @@ class PsutilMemoryMonitor(IMemoryMonitor):
             # driver_allocated includes the allocator pool — matches Activity
             # Monitor and is the right figure to show end users.
             stats.device_name = "Apple Silicon MPS"
-            stats.device_driver_gb = round(
-                torch.mps.driver_allocated_memory() / 1024 ** 3, 2
-            )
+            stats.device_driver_gb = round(torch.mps.driver_allocated_memory() / 1024**3, 2)
             # recommended_max_memory ≈ 75 % of physical RAM — use as ceiling.
-            stats.device_max_gb = round(
-                torch.mps.recommended_max_memory() / 1024 ** 3, 1
-            )
+            stats.device_max_gb = round(torch.mps.recommended_max_memory() / 1024**3, 1)
 
         elif self._device == "cuda" and torch.cuda.is_available():
             props = torch.cuda.get_device_properties(0)
             stats.device_name = props.name
-            stats.device_driver_gb = round(
-                torch.cuda.memory_allocated() / 1024 ** 3, 2
-            )
-            stats.device_max_gb = round(
-                props.total_memory / 1024 ** 3, 1
-            )
+            stats.device_driver_gb = round(torch.cuda.memory_allocated() / 1024**3, 2)
+            stats.device_max_gb = round(props.total_memory / 1024**3, 1)
 
         # ── Update cache ──────────────────────────────────────────────────────
         self._cache = (now, stats)

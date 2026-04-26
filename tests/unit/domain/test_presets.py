@@ -10,6 +10,7 @@ Rules:
 - No torch, gradio, chatterbox, psutil, or huggingface_hub imports.
 - Pure constant and function validation only.
 """
+
 from __future__ import annotations
 
 import pytest
@@ -23,10 +24,10 @@ from domain.presets import (
     get_preset_turbo,
 )
 
-
 # ──────────────────────────────────────────────────────────────────────────────
 # Counts
 # ──────────────────────────────────────────────────────────────────────────────
+
 
 class TestPresetCounts:
     def test_standard_presets_count(self):
@@ -47,6 +48,7 @@ class TestPresetCounts:
 # ──────────────────────────────────────────────────────────────────────────────
 # Name lists match dict keys exactly
 # ──────────────────────────────────────────────────────────────────────────────
+
 
 class TestPresetNameLists:
     def test_preset_tts_names_list_matches_dict_keys(self):
@@ -82,16 +84,13 @@ class TestPresetNameLists:
 # Default preset present in both dicts
 # ──────────────────────────────────────────────────────────────────────────────
 
+
 class TestDefaultPreset:
     def test_default_preset_exists_in_tts(self):
-        assert "🎯 Default" in PRESETS_TTS, (
-            "PRESETS_TTS must contain a '🎯 Default' preset"
-        )
+        assert "🎯 Default" in PRESETS_TTS, "PRESETS_TTS must contain a '🎯 Default' preset"
 
     def test_default_preset_exists_in_turbo(self):
-        assert "🎯 Default" in PRESETS_TURBO, (
-            "PRESETS_TURBO must contain a '🎯 Default' preset"
-        )
+        assert "🎯 Default" in PRESETS_TURBO, "PRESETS_TURBO must contain a '🎯 Default' preset"
 
     def test_default_is_first_tts_preset(self):
         """'🎯 Default' should be the first preset — it's the dropdown's initial value."""
@@ -112,81 +111,59 @@ class TestPresetRequiredKeys:
     def test_all_tts_presets_have_required_keys(self):
         for name, preset in PRESETS_TTS.items():
             missing = _REQUIRED_PRESET_KEYS - set(preset.keys())
-            assert not missing, (
-                f"TTS preset {name!r} is missing keys: {missing}"
-            )
+            assert not missing, f"TTS preset {name!r} is missing keys: {missing}"
 
     def test_all_turbo_presets_have_required_keys(self):
         for name, preset in PRESETS_TURBO.items():
             missing = _REQUIRED_PRESET_KEYS - set(preset.keys())
-            assert not missing, (
-                f"Turbo preset {name!r} is missing keys: {missing}"
-            )
+            assert not missing, f"Turbo preset {name!r} is missing keys: {missing}"
 
 
 # ──────────────────────────────────────────────────────────────────────────────
 # sample_text — non-empty strings
 # ──────────────────────────────────────────────────────────────────────────────
 
+
 class TestPresetSampleTexts:
     def test_all_tts_presets_have_sample_text(self):
         for name, preset in PRESETS_TTS.items():
             text = preset.get("sample_text", "")
-            assert isinstance(text, str), (
-                f"TTS preset {name!r}: sample_text is not a str"
-            )
-            assert text.strip(), (
-                f"TTS preset {name!r}: sample_text is empty"
-            )
+            assert isinstance(text, str), f"TTS preset {name!r}: sample_text is not a str"
+            assert text.strip(), f"TTS preset {name!r}: sample_text is empty"
 
     def test_all_turbo_presets_have_sample_text(self):
         for name, preset in PRESETS_TURBO.items():
             text = preset.get("sample_text", "")
-            assert isinstance(text, str), (
-                f"Turbo preset {name!r}: sample_text is not a str"
-            )
-            assert text.strip(), (
-                f"Turbo preset {name!r}: sample_text is empty"
-            )
+            assert isinstance(text, str), f"Turbo preset {name!r}: sample_text is not a str"
+            assert text.strip(), f"Turbo preset {name!r}: sample_text is empty"
 
     def test_tts_sample_texts_are_unique(self):
         """Each TTS preset should showcase a distinct use case."""
         texts = [p["sample_text"] for p in PRESETS_TTS.values()]
-        assert len(texts) == len(set(texts)), (
-            "PRESETS_TTS contains duplicate sample_text values"
-        )
+        assert len(texts) == len(set(texts)), "PRESETS_TTS contains duplicate sample_text values"
 
     def test_turbo_sample_texts_are_unique(self):
         texts = [p["sample_text"] for p in PRESETS_TURBO.values()]
-        assert len(texts) == len(set(texts)), (
-            "PRESETS_TURBO contains duplicate sample_text values"
-        )
+        assert len(texts) == len(set(texts)), "PRESETS_TURBO contains duplicate sample_text values"
 
 
 # ──────────────────────────────────────────────────────────────────────────────
 # rationale_md — non-empty markdown strings
 # ──────────────────────────────────────────────────────────────────────────────
 
+
 class TestPresetRationaleMd:
     def test_all_tts_presets_have_rationale_md(self):
         for name, preset in PRESETS_TTS.items():
             md = preset.get("rationale_md", "")
-            assert isinstance(md, str), (
-                f"TTS preset {name!r}: rationale_md is not a str"
-            )
-            assert md.strip(), (
-                f"TTS preset {name!r}: rationale_md is empty"
-            )
+            assert isinstance(md, str), f"TTS preset {name!r}: rationale_md is not a str"
+            assert md.strip(), f"TTS preset {name!r}: rationale_md is empty"
 
     def test_all_turbo_presets_have_rationale_md(self):
         for name, preset in PRESETS_TURBO.items():
             md = preset.get("rationale_md", "")
-            assert isinstance(md, str), (
-                f"Turbo preset {name!r}: rationale_md is not a str"
-            )
-            assert md.strip(), (
-                f"Turbo preset {name!r}: rationale_md is empty"
-            )
+            assert isinstance(md, str), f"Turbo preset {name!r}: rationale_md is not a str"
+            assert md.strip(), f"Turbo preset {name!r}: rationale_md is empty"
 
     def test_tts_rationale_md_contains_markdown_table(self):
         """Each rationale should have a markdown param table for educational value."""
@@ -208,26 +185,19 @@ class TestPresetRationaleMd:
 # description — non-empty strings
 # ──────────────────────────────────────────────────────────────────────────────
 
+
 class TestPresetDescriptions:
     def test_all_tts_presets_have_description(self):
         for name, preset in PRESETS_TTS.items():
             desc = preset.get("description", "")
-            assert isinstance(desc, str), (
-                f"TTS preset {name!r}: description is not a str"
-            )
-            assert desc.strip(), (
-                f"TTS preset {name!r}: description is empty"
-            )
+            assert isinstance(desc, str), f"TTS preset {name!r}: description is not a str"
+            assert desc.strip(), f"TTS preset {name!r}: description is empty"
 
     def test_all_turbo_presets_have_description(self):
         for name, preset in PRESETS_TURBO.items():
             desc = preset.get("description", "")
-            assert isinstance(desc, str), (
-                f"Turbo preset {name!r}: description is not a str"
-            )
-            assert desc.strip(), (
-                f"Turbo preset {name!r}: description is empty"
-            )
+            assert isinstance(desc, str), f"Turbo preset {name!r}: description is not a str"
+            assert desc.strip(), f"Turbo preset {name!r}: description is empty"
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -235,18 +205,23 @@ class TestPresetDescriptions:
 # ──────────────────────────────────────────────────────────────────────────────
 
 _TTS_REQUIRED_PARAM_KEYS = {
-    "exaggeration", "cfg_weight", "temperature", "rep_penalty", "min_p", "top_p"
+    "exaggeration",
+    "cfg_weight",
+    "temperature",
+    "rep_penalty",
+    "min_p",
+    "top_p",
 }
 
 # Validated ranges: permissive enough for all 10 presets, strict enough to
 # catch obviously wrong values (e.g. someone swapping exaggeration with top_k).
 _TTS_PARAM_RANGES: dict[str, tuple[float, float]] = {
     "exaggeration": (0.25, 2.0),
-    "cfg_weight":   (0.0,  1.0),
-    "temperature":  (0.05, 5.0),
-    "rep_penalty":  (1.0,  3.0),
-    "min_p":        (0.0,  1.0),
-    "top_p":        (0.0,  1.0),
+    "cfg_weight": (0.0, 1.0),
+    "temperature": (0.05, 5.0),
+    "rep_penalty": (1.0, 3.0),
+    "min_p": (0.0, 1.0),
+    "top_p": (0.0, 1.0),
 }
 
 
@@ -255,9 +230,7 @@ class TestTTSPresetParams:
         for name, preset in PRESETS_TTS.items():
             params = preset.get("params", {})
             missing = _TTS_REQUIRED_PARAM_KEYS - set(params.keys())
-            assert not missing, (
-                f"TTS preset {name!r} params is missing keys: {missing}"
-            )
+            assert not missing, f"TTS preset {name!r} params is missing keys: {missing}"
 
     def test_all_standard_preset_params_in_range(self):
         """All numeric TTS params must fall within their validated ranges."""
@@ -303,9 +276,16 @@ class TestTTSPresetParams:
 
     def test_known_tts_preset_names_present(self):
         expected_names = {
-            "🎯 Default", "📚 Audiobook", "📰 News Broadcast", "💬 Conversational",
-            "🎭 Dramatic", "📣 Advertisement", "🎓 E-Learning", "🎮 Game Character",
-            "🧘 Meditation / ASMR", "🔬 Experimental",
+            "🎯 Default",
+            "📚 Audiobook",
+            "📰 News Broadcast",
+            "💬 Conversational",
+            "🎭 Dramatic",
+            "📣 Advertisement",
+            "🎓 E-Learning",
+            "🎮 Game Character",
+            "🧘 Meditation / ASMR",
+            "🔬 Experimental",
         }
         assert set(PRESETS_TTS.keys()) == expected_names
 
@@ -315,15 +295,20 @@ class TestTTSPresetParams:
 # ──────────────────────────────────────────────────────────────────────────────
 
 _TURBO_REQUIRED_PARAM_KEYS = {
-    "temperature", "top_k", "top_p", "rep_penalty", "min_p", "norm_loudness"
+    "temperature",
+    "top_k",
+    "top_p",
+    "rep_penalty",
+    "min_p",
+    "norm_loudness",
 }
 
 _TURBO_PARAM_RANGES: dict[str, tuple[float, float]] = {
-    "temperature":  (0.05, 2.0),
-    "top_k":        (1,    2000),
-    "top_p":        (0.0,  1.0),
-    "rep_penalty":  (1.0,  3.0),
-    "min_p":        (0.0,  1.0),
+    "temperature": (0.05, 2.0),
+    "top_k": (1, 2000),
+    "top_p": (0.0, 1.0),
+    "rep_penalty": (1.0, 3.0),
+    "min_p": (0.0, 1.0),
 }
 
 
@@ -332,9 +317,7 @@ class TestTurboPresetParams:
         for name, preset in PRESETS_TURBO.items():
             params = preset.get("params", {})
             missing = _TURBO_REQUIRED_PARAM_KEYS - set(params.keys())
-            assert not missing, (
-                f"Turbo preset {name!r} params is missing keys: {missing}"
-            )
+            assert not missing, f"Turbo preset {name!r} params is missing keys: {missing}"
 
     def test_all_turbo_preset_params_in_range(self):
         """All numeric Turbo params must fall within their validated ranges."""
@@ -396,14 +379,16 @@ class TestTurboPresetParams:
     def test_all_top_k_values_are_integers(self):
         for name, preset in PRESETS_TURBO.items():
             top_k = preset["params"]["top_k"]
-            assert isinstance(top_k, int), (
-                f"Turbo preset {name!r}: top_k={top_k!r} must be an int"
-            )
+            assert isinstance(top_k, int), f"Turbo preset {name!r}: top_k={top_k!r} must be an int"
 
     def test_known_turbo_preset_names_present(self):
         expected_names = {
-            "🎯 Default", "🤖 Voice Agent", "🎙️ Podcast Host",
-            "🧙 Character / NPC", "📻 Radio / Promo", "📞 IVR / Max Reliable",
+            "🎯 Default",
+            "🤖 Voice Agent",
+            "🎙️ Podcast Host",
+            "🧙 Character / NPC",
+            "📻 Radio / Promo",
+            "📞 IVR / Max Reliable",
         }
         assert set(PRESETS_TURBO.keys()) == expected_names
 
@@ -411,6 +396,7 @@ class TestTurboPresetParams:
 # ──────────────────────────────────────────────────────────────────────────────
 # get_preset_tts
 # ──────────────────────────────────────────────────────────────────────────────
+
 
 class TestGetPresetTts:
     def test_returns_correct_preset_for_known_name(self):
@@ -452,6 +438,7 @@ class TestGetPresetTts:
 # get_preset_turbo
 # ──────────────────────────────────────────────────────────────────────────────
 
+
 class TestGetPresetTurbo:
     def test_returns_correct_preset_for_known_name(self):
         result = get_preset_turbo("🎯 Default")
@@ -490,6 +477,7 @@ class TestGetPresetTurbo:
 # ──────────────────────────────────────────────────────────────────────────────
 # Module-level purity check
 # ──────────────────────────────────────────────────────────────────────────────
+
 
 def test_presets_module_has_no_torch_import():
     """presets.py must not import torch — domain layer must be framework-free."""

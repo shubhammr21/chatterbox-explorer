@@ -19,7 +19,11 @@ Design contract
 - Module-level constants (CSS, theme, JS, tooltip strings) are pure data —
   zero side-effects, safe to import at any time.
 """
+
 from __future__ import annotations
+
+import logging
+from typing import TYPE_CHECKING
 
 import gradio as gr
 
@@ -30,21 +34,30 @@ from domain.languages import (
     PARA_TAGS,
     SAMPLE_TEXTS,
 )
-from domain.models import AppConfig
 from domain.presets import (
     PRESET_TTS_NAMES,
     PRESET_TURBO_NAMES,
     PRESETS_TTS,
     PRESETS_TURBO,
 )
-from ports.input import (
-    IModelManagerService,
-    IMultilingualTTSService,
-    ITTSService,
-    ITurboTTSService,
-    IVoiceConversionService,
-    IWatermarkService,
-)
+
+if TYPE_CHECKING:
+    # Port ABCs and AppConfig are only referenced in build_demo() parameter
+    # annotations.  Moving them here avoids importing the ABC hierarchy at
+    # runtime.  from __future__ import annotations (above) ensures all
+    # annotations are treated as strings, so these imports are never evaluated
+    # at runtime.
+    from domain.models import AppConfig
+    from ports.input import (
+        IModelManagerService,
+        IMultilingualTTSService,
+        ITTSService,
+        ITurboTTSService,
+        IVoiceConversionService,
+        IWatermarkService,
+    )
+
+log = logging.getLogger(__name__)
 
 # ──────────────────────────────────────────────────────────────────────────────
 # Module-level constants  (pure data — no side-effects)
@@ -88,11 +101,11 @@ _INSERT_TAG_JS: str = """
 """
 
 # Shared tooltip strings (reused across all three TTS tabs)
-_D_EXAG = "Emotional intensity. 0.5 = neutral · 0.7 = expressive · 1.5–2.0 = dramatic/unstable"
-_D_CFG  = "Voice clone fidelity. 0 = ignore accent · 0.5 = balanced · 1 = strict clone"
+_D_EXAG = "Emotional intensity. 0.5 = neutral · 0.7 = expressive · 1.5-2.0 = dramatic/unstable"
+_D_CFG = "Voice clone fidelity. 0 = ignore accent · 0.5 = balanced · 1 = strict clone"
 _D_TEMP = "Randomness. Low = stable/consistent · High = creative/varied (may introduce errors)"
-_D_REP  = "Suppresses repeated words/tokens during generation"
-_D_MINP = "Min-P sampler. 0 = disabled. 0.02–0.1 recommended at high temperatures"
+_D_REP = "Suppresses repeated words/tokens during generation"
+_D_MINP = "Min-P sampler. 0 = disabled. 0.02-0.1 recommended at high temperatures"
 _D_TOPP = "Nucleus sampling cutoff. 1.0 = disabled (recommended default)"
 _D_TOPK = "Top-K token pool size. Turbo-specific"
 _D_SEED = "0 = random each run. Any other integer → fully reproducible output"
@@ -101,6 +114,7 @@ _D_SEED = "0 = random each run. Any other integer → fully reproducible output"
 # ──────────────────────────────────────────────────────────────────────────────
 # build_demo
 # ──────────────────────────────────────────────────────────────────────────────
+
 
 def build_demo(
     tts: ITTSService,
@@ -159,7 +173,6 @@ def build_demo(
         theme=GRADIO_THEME,
         css=GRADIO_CSS,
     ) as demo:
-
         # ── Header ────────────────────────────────────────────────────────────
         gr.Markdown(
             f"# 🎙️ Chatterbox TTS Explorer\n"
@@ -183,7 +196,6 @@ def build_demo(
         gr.Markdown("---")
 
         with gr.Tabs():
-
             # ── Tab 1: Standard TTS ───────────────────────────────────────────
             with gr.Tab("🗣️ Standard TTS"):
                 gr.Markdown(
@@ -228,31 +240,55 @@ def build_demo(
                             with gr.Row():
                                 # v2: exaggeration extended to 2.0
                                 tts_exag = gr.Slider(
-                                    0.25, 2.0, value=0.5, step=0.05,
-                                    label="Exaggeration", info=_D_EXAG,
+                                    0.25,
+                                    2.0,
+                                    value=0.5,
+                                    step=0.05,
+                                    label="Exaggeration",
+                                    info=_D_EXAG,
                                 )
                                 tts_cfg = gr.Slider(
-                                    0.0, 1.0, value=0.5, step=0.05,
-                                    label="CFG Weight", info=_D_CFG,
+                                    0.0,
+                                    1.0,
+                                    value=0.5,
+                                    step=0.05,
+                                    label="CFG Weight",
+                                    info=_D_CFG,
                                 )
                             with gr.Row():
-                                # v2: temperature range 0.05–5.0
+                                # v2: temperature range 0.05-5.0
                                 tts_temp = gr.Slider(
-                                    0.05, 5.0, value=0.8, step=0.05,
-                                    label="Temperature", info=_D_TEMP,
+                                    0.05,
+                                    5.0,
+                                    value=0.8,
+                                    step=0.05,
+                                    label="Temperature",
+                                    info=_D_TEMP,
                                 )
                                 tts_rep = gr.Slider(
-                                    1.0, 2.0, value=1.2, step=0.05,
-                                    label="Repetition Penalty", info=_D_REP,
+                                    1.0,
+                                    2.0,
+                                    value=1.2,
+                                    step=0.05,
+                                    label="Repetition Penalty",
+                                    info=_D_REP,
                                 )
                             with gr.Row():
                                 tts_minp = gr.Slider(
-                                    0.0, 1.0, value=0.05, step=0.01,
-                                    label="Min-P", info=_D_MINP,
+                                    0.0,
+                                    1.0,
+                                    value=0.05,
+                                    step=0.01,
+                                    label="Min-P",
+                                    info=_D_MINP,
                                 )
                                 tts_topp = gr.Slider(
-                                    0.0, 1.0, value=1.0, step=0.01,
-                                    label="Top-P", info=_D_TOPP,
+                                    0.0,
+                                    1.0,
+                                    value=1.0,
+                                    step=0.01,
+                                    label="Top-P",
+                                    info=_D_TOPP,
                                 )
                             # v2: random seed control
                             tts_seed = gr.Number(
@@ -296,13 +332,31 @@ def build_demo(
                 tts_preset.change(
                     fn=h.apply_preset_tts,
                     inputs=[tts_preset],
-                    outputs=[tts_exag, tts_cfg, tts_temp, tts_rep,
-                             tts_minp, tts_topp, tts_text, tts_rationale],
+                    outputs=[
+                        tts_exag,
+                        tts_cfg,
+                        tts_temp,
+                        tts_rep,
+                        tts_minp,
+                        tts_topp,
+                        tts_text,
+                        tts_rationale,
+                    ],
                 )
                 tts_btn.click(
                     fn=h.handle_tts,
-                    inputs=[tts_text, tts_ref, tts_exag, tts_cfg, tts_temp,
-                            tts_rep, tts_minp, tts_topp, tts_stream, tts_seed],
+                    inputs=[
+                        tts_text,
+                        tts_ref,
+                        tts_exag,
+                        tts_cfg,
+                        tts_temp,
+                        tts_rep,
+                        tts_minp,
+                        tts_topp,
+                        tts_stream,
+                        tts_seed,
+                    ],
                     outputs=tts_out,
                 )
 
@@ -346,8 +400,7 @@ def build_demo(
                         gr.Markdown("**🏷️ Insert Tag at Cursor:**")
                         with gr.Row():
                             turbo_tag_btns = [
-                                gr.Button(t, size="sm", elem_classes=["tag-btn"])
-                                for t in PARA_TAGS
+                                gr.Button(t, size="sm", elem_classes=["tag-btn"]) for t in PARA_TAGS
                             ]
 
                         turbo_ref = gr.Audio(
@@ -361,29 +414,49 @@ def build_demo(
                             open=True,
                         ):
                             with gr.Row():
-                                # v2: temperature range 0.05–2.0
+                                # v2: temperature range 0.05-2.0
                                 turbo_temp = gr.Slider(
-                                    0.05, 2.0, value=0.8, step=0.05,
-                                    label="Temperature", info=_D_TEMP,
+                                    0.05,
+                                    2.0,
+                                    value=0.8,
+                                    step=0.05,
+                                    label="Temperature",
+                                    info=_D_TEMP,
                                 )
                                 turbo_topk = gr.Slider(
-                                    1, 2000, value=1000, step=10,
-                                    label="Top-K", info=_D_TOPK,
+                                    1,
+                                    2000,
+                                    value=1000,
+                                    step=10,
+                                    label="Top-K",
+                                    info=_D_TOPK,
                                 )
                             with gr.Row():
                                 turbo_topp = gr.Slider(
-                                    0.0, 1.0, value=0.95, step=0.01,
-                                    label="Top-P", info=_D_TOPP,
+                                    0.0,
+                                    1.0,
+                                    value=0.95,
+                                    step=0.01,
+                                    label="Top-P",
+                                    info=_D_TOPP,
                                 )
                                 turbo_rep = gr.Slider(
-                                    1.0, 2.0, value=1.2, step=0.05,
-                                    label="Repetition Penalty", info=_D_REP,
+                                    1.0,
+                                    2.0,
+                                    value=1.2,
+                                    step=0.05,
+                                    label="Repetition Penalty",
+                                    info=_D_REP,
                                 )
                             with gr.Row():
                                 # Turbo ignores min_p internally — shown for transparency
                                 turbo_minp = gr.Slider(
-                                    0.0, 1.0, value=0.0, step=0.01,
-                                    label="Min-P  ⚠️ ignored by Turbo", info=_D_MINP,
+                                    0.0,
+                                    1.0,
+                                    value=0.0,
+                                    step=0.01,
+                                    label="Min-P  ⚠️ ignored by Turbo",
+                                    info=_D_MINP,
                                 )
                                 # v2: seed control
                                 turbo_seed = gr.Number(
@@ -395,7 +468,7 @@ def build_demo(
                                 )
                             turbo_loudness = gr.Checkbox(
                                 label="📢 Normalize Loudness  "
-                                      "(normalises reference to –27 LUFS before conditioning)",
+                                "(normalises reference to -27 LUFS before conditioning)",
                                 value=True,
                             )
 
@@ -406,9 +479,7 @@ def build_demo(
                         turbo_stream = gr.Checkbox(
                             label="🌊 Stream  (sentence-by-sentence)", value=False
                         )
-                        turbo_btn = gr.Button(
-                            "⚡ Generate (Turbo)", variant="primary", size="lg"
-                        )
+                        turbo_btn = gr.Button("⚡ Generate (Turbo)", variant="primary", size="lg")
 
                     with gr.Column(scale=2):
                         turbo_out = gr.Audio(
@@ -454,13 +525,31 @@ def build_demo(
                 turbo_preset.change(
                     fn=h.apply_preset_turbo,
                     inputs=[turbo_preset],
-                    outputs=[turbo_temp, turbo_topk, turbo_topp, turbo_rep,
-                             turbo_minp, turbo_loudness, turbo_text, turbo_rationale],
+                    outputs=[
+                        turbo_temp,
+                        turbo_topk,
+                        turbo_topp,
+                        turbo_rep,
+                        turbo_minp,
+                        turbo_loudness,
+                        turbo_text,
+                        turbo_rationale,
+                    ],
                 )
                 turbo_btn.click(
                     fn=h.handle_turbo,
-                    inputs=[turbo_text, turbo_ref, turbo_temp, turbo_topk, turbo_topp,
-                            turbo_rep, turbo_minp, turbo_loudness, turbo_stream, turbo_seed],
+                    inputs=[
+                        turbo_text,
+                        turbo_ref,
+                        turbo_temp,
+                        turbo_topk,
+                        turbo_topp,
+                        turbo_rep,
+                        turbo_minp,
+                        turbo_loudness,
+                        turbo_stream,
+                        turbo_seed,
+                    ],
                     outputs=turbo_out,
                 )
 
@@ -486,7 +575,7 @@ def build_demo(
                                     value="🎯 Default",
                                     scale=2,
                                     info="Auto-fills all parameters — text is controlled "
-                                         "by the language dropdown below",
+                                    "by the language dropdown below",
                                 )
                             mtl_rationale = gr.Markdown(
                                 value=PRESETS_TTS["🎯 Default"]["rationale_md"],
@@ -517,33 +606,57 @@ def build_demo(
                             open=True,
                         ):
                             with gr.Row():
-                                # v2: exaggeration 0.25–2.0
+                                # v2: exaggeration 0.25-2.0
                                 mtl_exag = gr.Slider(
-                                    0.25, 2.0, value=0.5, step=0.05,
-                                    label="Exaggeration", info=_D_EXAG,
+                                    0.25,
+                                    2.0,
+                                    value=0.5,
+                                    step=0.05,
+                                    label="Exaggeration",
+                                    info=_D_EXAG,
                                 )
                                 mtl_cfg = gr.Slider(
-                                    0.0, 1.0, value=0.5, step=0.05,
-                                    label="CFG Weight", info=_D_CFG,
+                                    0.0,
+                                    1.0,
+                                    value=0.5,
+                                    step=0.05,
+                                    label="CFG Weight",
+                                    info=_D_CFG,
                                 )
                             with gr.Row():
-                                # v2: temperature 0.05–5.0
+                                # v2: temperature 0.05-5.0
                                 mtl_temp = gr.Slider(
-                                    0.05, 5.0, value=0.8, step=0.05,
-                                    label="Temperature", info=_D_TEMP,
+                                    0.05,
+                                    5.0,
+                                    value=0.8,
+                                    step=0.05,
+                                    label="Temperature",
+                                    info=_D_TEMP,
                                 )
                                 mtl_rep = gr.Slider(
-                                    1.0, 2.0, value=2.0, step=0.05,
-                                    label="Repetition Penalty", info=_D_REP,
+                                    1.0,
+                                    2.0,
+                                    value=2.0,
+                                    step=0.05,
+                                    label="Repetition Penalty",
+                                    info=_D_REP,
                                 )
                             with gr.Row():
                                 mtl_minp = gr.Slider(
-                                    0.0, 1.0, value=0.05, step=0.01,
-                                    label="Min-P", info=_D_MINP,
+                                    0.0,
+                                    1.0,
+                                    value=0.05,
+                                    step=0.01,
+                                    label="Min-P",
+                                    info=_D_MINP,
                                 )
                                 mtl_topp = gr.Slider(
-                                    0.0, 1.0, value=1.0, step=0.01,
-                                    label="Top-P", info=_D_TOPP,
+                                    0.0,
+                                    1.0,
+                                    value=1.0,
+                                    step=0.01,
+                                    label="Top-P",
+                                    info=_D_TOPP,
                                 )
                             # v2: seed control
                             mtl_seed = gr.Number(
@@ -590,8 +703,15 @@ def build_demo(
                 mtl_preset.change(
                     fn=h.apply_preset_mtl,
                     inputs=[mtl_preset],
-                    outputs=[mtl_exag, mtl_cfg, mtl_temp, mtl_rep,
-                             mtl_minp, mtl_topp, mtl_rationale],
+                    outputs=[
+                        mtl_exag,
+                        mtl_cfg,
+                        mtl_temp,
+                        mtl_rep,
+                        mtl_minp,
+                        mtl_topp,
+                        mtl_rationale,
+                    ],
                 )
                 # v2: language change → auto-fill BOTH sample text AND reference audio
                 mtl_lang.change(
@@ -601,8 +721,19 @@ def build_demo(
                 )
                 mtl_btn.click(
                     fn=h.handle_multilingual,
-                    inputs=[mtl_text, mtl_lang, mtl_ref, mtl_exag, mtl_cfg,
-                            mtl_temp, mtl_rep, mtl_minp, mtl_topp, mtl_stream, mtl_seed],
+                    inputs=[
+                        mtl_text,
+                        mtl_lang,
+                        mtl_ref,
+                        mtl_exag,
+                        mtl_cfg,
+                        mtl_temp,
+                        mtl_rep,
+                        mtl_minp,
+                        mtl_topp,
+                        mtl_stream,
+                        mtl_seed,
+                    ],
                     outputs=mtl_out,
                 )
 
@@ -627,9 +758,7 @@ def build_demo(
                             type="filepath",
                             sources=["upload", "microphone"],
                         )
-                        vc_btn = gr.Button(
-                            "🔄 Convert Voice", variant="primary", size="lg"
-                        )
+                        vc_btn = gr.Button("🔄 Convert Voice", variant="primary", size="lg")
 
                     with gr.Column(scale=1):
                         gr.Markdown("### Output")
@@ -647,7 +776,7 @@ def build_demo(
                             "                                        │\n"
                             "                                   S3Gen ──► Output WAV\n"
                             "```\n\n"
-                            "The model extracts the **\"what\"** from source and the **\"who\"**\n"
+                            'The model extracts the **"what"** from source and the **"who"**\n'
                             "from target, then re-synthesises them together.\n\n"
                             "### Use Cases\n"
                             "| Scenario | Description |\n"
@@ -708,9 +837,9 @@ def build_demo(
                         "exaggeration & CFG controls_"
                     )
                     with gr.Row():
-                        mgr_tts_load   = gr.Button("⬆️ Load into Memory",   size="sm", variant="primary")
+                        mgr_tts_load = gr.Button("⬆️ Load into Memory", size="sm", variant="primary")
                         mgr_tts_unload = gr.Button("⬇️ Unload from Memory", size="sm")
-                        mgr_tts_dl     = gr.Button("📥 Download Weights",   size="sm")
+                        mgr_tts_dl = gr.Button("📥 Download Weights", size="sm")
 
                 # Turbo TTS
                 with gr.Group():
@@ -719,9 +848,11 @@ def build_demo(
                         "&nbsp;·&nbsp; _English · 1-step decoder · paralinguistic tags · low VRAM_"
                     )
                     with gr.Row():
-                        mgr_turbo_load   = gr.Button("⬆️ Load into Memory",   size="sm", variant="primary")
+                        mgr_turbo_load = gr.Button(
+                            "⬆️ Load into Memory", size="sm", variant="primary"
+                        )
                         mgr_turbo_unload = gr.Button("⬇️ Unload from Memory", size="sm")
-                        mgr_turbo_dl     = gr.Button("📥 Download Weights",   size="sm")
+                        mgr_turbo_dl = gr.Button("📥 Download Weights", size="sm")
 
                 # Multilingual TTS
                 with gr.Group():
@@ -730,9 +861,9 @@ def build_demo(
                         "&nbsp;·&nbsp; _23 languages · cross-language voice cloning_"
                     )
                     with gr.Row():
-                        mgr_mtl_load   = gr.Button("⬆️ Load into Memory",   size="sm", variant="primary")
+                        mgr_mtl_load = gr.Button("⬆️ Load into Memory", size="sm", variant="primary")
                         mgr_mtl_unload = gr.Button("⬇️ Unload from Memory", size="sm")
-                        mgr_mtl_dl     = gr.Button("📥 Download Weights",   size="sm")
+                        mgr_mtl_dl = gr.Button("📥 Download Weights", size="sm")
 
                 # Voice Conversion
                 with gr.Group():
@@ -741,9 +872,9 @@ def build_demo(
                         "&nbsp;·&nbsp; _Audio-to-audio · no text needed · voice identity swap_"
                     )
                     with gr.Row():
-                        mgr_vc_load   = gr.Button("⬆️ Load into Memory",   size="sm", variant="primary")
+                        mgr_vc_load = gr.Button("⬆️ Load into Memory", size="sm", variant="primary")
                         mgr_vc_unload = gr.Button("⬇️ Unload from Memory", size="sm")
-                        mgr_vc_dl     = gr.Button("📥 Download Weights",   size="sm")
+                        mgr_vc_dl = gr.Button("📥 Download Weights", size="sm")
 
                 # Event wiring — Model Manager
                 mgr_refresh_btn.click(fn=h.render_manager_html, outputs=mgr_html)
@@ -818,9 +949,7 @@ def build_demo(
                             type="filepath",
                             sources=["upload"],
                         )
-                        wm_btn = gr.Button(
-                            "🔍 Detect Watermark", variant="primary", size="lg"
-                        )
+                        wm_btn = gr.Button("🔍 Detect Watermark", variant="primary", size="lg")
 
                     with gr.Column(scale=1):
                         wm_result = gr.Textbox(
@@ -835,11 +964,11 @@ def build_demo(
                             "|---|---|\n"
                             "| **≥ 0.9** | ✅ Chatterbox watermark detected |\n"
                             "| **≤ 0.1** | ❌ No watermark — likely human or other TTS |\n"
-                            "| **0.1 – 0.9** | ⚠️ Inconclusive (degraded/partial signal) |\n\n"
+                            "| **0.1 - 0.9** | ⚠️ Inconclusive (degraded/partial signal) |\n\n"
                             "### Check in Code\n"
                             "```python\n"
                             "import perth, librosa\n\n"
-                            "audio, sr = librosa.load(\"output.wav\", sr=None)\n"
+                            'audio, sr = librosa.load("output.wav", sr=None)\n'
                             "wm = perth.PerthImplicitWatermarker()\n"
                             "score = wm.get_watermark(audio, sample_rate=sr)\n"
                             "print(score)  # 1.0 = watermarked · 0.0 = clean\n"
@@ -866,7 +995,7 @@ def build_demo(
                     "| **Random seed** | All 3 TTS tabs · 0 = random · non-zero = reproducible |\n"
                     "| **Exaggeration range** | Extended to 2.0 (was capped at 1.0) — "
                     "matches official app and demo page |\n"
-                    "| **Temperature ranges** | Standard & MTL: 0.05–5.0 · Turbo: 0.05–2.0 "
+                    "| **Temperature ranges** | Standard & MTL: 0.05-5.0 · Turbo: 0.05-2.0 "
                     "(matches official apps) |\n"
                     "| **Cursor-aware tags** | Tag buttons insert at cursor position via JS "
                     "(not just append) |\n"
@@ -889,23 +1018,23 @@ def build_demo(
                     "### Full Parameter Reference\n"
                     "| Parameter | Models | Range | Default | Description |\n"
                     "|---|---|---|---|---|\n"
-                    "| `exaggeration` | Standard, MTL | 0.25 – 2.0 | 0.5 | "
+                    "| `exaggeration` | Standard, MTL | 0.25 - 2.0 | 0.5 | "
                     "Emotional intensity |\n"
-                    "| `cfg_weight` | Standard, MTL | 0 – 1 | 0.5 | "
+                    "| `cfg_weight` | Standard, MTL | 0 - 1 | 0.5 | "
                     "Voice clone fidelity vs. naturalness |\n"
-                    "| `temperature` | Standard, MTL | 0.05 – 5.0 | 0.8 | "
+                    "| `temperature` | Standard, MTL | 0.05 - 5.0 | 0.8 | "
                     "Output randomness / creativity |\n"
-                    "| `temperature` | Turbo | 0.05 – 2.0 | 0.8 | "
+                    "| `temperature` | Turbo | 0.05 - 2.0 | 0.8 | "
                     "Output randomness / creativity |\n"
-                    "| `repetition_penalty` | All | 1.0 – 2.0 | 1.2 / 2.0 | "
+                    "| `repetition_penalty` | All | 1.0 - 2.0 | 1.2 / 2.0 | "
                     "Suppresses token repetition |\n"
-                    "| `min_p` | Standard, MTL | 0 – 1 | 0.05 | "
+                    "| `min_p` | Standard, MTL | 0 - 1 | 0.05 | "
                     "Min-P sampler (0 = disabled) |\n"
-                    "| `top_p` | All | 0 – 1 | 1.0 / 0.95 | "
+                    "| `top_p` | All | 0 - 1 | 1.0 / 0.95 | "
                     "Nucleus sampling (1.0 = disabled) |\n"
-                    "| `top_k` | Turbo | 1 – 2000 | 1000 | Top-K token pool |\n"
+                    "| `top_k` | Turbo | 1 - 2000 | 1000 | Top-K token pool |\n"
                     "| `norm_loudness` | Turbo | bool | True | "
-                    "Normalise ref to –27 LUFS |\n"
+                    "Normalise ref to -27 LUFS |\n"
                     "| `seed` | All TTS | int ≥ 0 | 0 | 0 = random · other = fixed |\n\n"
                     "---\n\n"
                     "### Architecture\n"

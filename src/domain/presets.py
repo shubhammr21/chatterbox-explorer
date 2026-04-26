@@ -29,6 +29,7 @@ Parameter notes (from official Chatterbox README + empirical testing):
     • rep_penalty 1.4 is the "safe maximum" for long-form content
     • top_k (Turbo only) is the strongest creativity dial: 80 = near-greedy, 2000 = wide open
 """
+
 from __future__ import annotations
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -36,7 +37,6 @@ from __future__ import annotations
 # ──────────────────────────────────────────────────────────────────────────────
 
 PRESETS_TTS: dict[str, dict] = {
-
     "🎯 Default": {
         "description": "Balanced starting point — works well for most content out of the box.",
         "rationale_md": """\
@@ -57,14 +57,13 @@ PRESETS_TTS: dict[str, dict] = {
         ),
         "params": {
             "exaggeration": 0.5,
-            "cfg_weight":   0.5,
-            "temperature":  0.8,
-            "rep_penalty":  1.2,
-            "min_p":        0.05,
-            "top_p":        1.0,
+            "cfg_weight": 0.5,
+            "temperature": 0.8,
+            "rep_penalty": 1.2,
+            "min_p": 0.05,
+            "top_p": 1.0,
         },
     },
-
     "📚 Audiobook": {
         "description": "Calm, consistent narration for long-form content. Stable across chapters.",
         "rationale_md": """\
@@ -89,14 +88,13 @@ PRESETS_TTS: dict[str, dict] = {
         ),
         "params": {
             "exaggeration": 0.35,
-            "cfg_weight":   0.65,
-            "temperature":  0.65,
-            "rep_penalty":  1.40,
-            "min_p":        0.05,
-            "top_p":        1.0,
+            "cfg_weight": 0.65,
+            "temperature": 0.65,
+            "rep_penalty": 1.40,
+            "min_p": 0.05,
+            "top_p": 1.0,
         },
     },
-
     "📰 News Broadcast": {
         "description": "Clear, authoritative, measured pace. Professional journalism delivery.",
         "rationale_md": """\
@@ -121,14 +119,13 @@ PRESETS_TTS: dict[str, dict] = {
         ),
         "params": {
             "exaggeration": 0.40,
-            "cfg_weight":   0.70,
-            "temperature":  0.45,
-            "rep_penalty":  1.30,
-            "min_p":        0.06,
-            "top_p":        0.90,
+            "cfg_weight": 0.70,
+            "temperature": 0.45,
+            "rep_penalty": 1.30,
+            "min_p": 0.06,
+            "top_p": 0.90,
         },
     },
-
     "💬 Conversational": {
         "description": "Natural, relaxed, everyday speech. Warm and spontaneous-sounding.",
         "rationale_md": """\
@@ -153,14 +150,13 @@ PRESETS_TTS: dict[str, dict] = {
         ),
         "params": {
             "exaggeration": 0.55,
-            "cfg_weight":   0.45,
-            "temperature":  0.90,
-            "rep_penalty":  1.20,
-            "min_p":        0.05,
-            "top_p":        1.0,
+            "cfg_weight": 0.45,
+            "temperature": 0.90,
+            "rep_penalty": 1.20,
+            "min_p": 0.05,
+            "top_p": 1.0,
         },
     },
-
     "🎭 Dramatic": {
         "description": "High-emotion, theatrical delivery. Strong expressive range.",
         "rationale_md": """\
@@ -185,14 +181,13 @@ PRESETS_TTS: dict[str, dict] = {
         ),
         "params": {
             "exaggeration": 0.80,
-            "cfg_weight":   0.30,
-            "temperature":  0.85,
-            "rep_penalty":  1.20,
-            "min_p":        0.03,
-            "top_p":        1.0,
+            "cfg_weight": 0.30,
+            "temperature": 0.85,
+            "rep_penalty": 1.20,
+            "min_p": 0.03,
+            "top_p": 1.0,
         },
     },
-
     "📣 Advertisement": {
         "description": "Energetic, persuasive copy. Upbeat, punchy delivery.",
         "rationale_md": """\
@@ -217,14 +212,13 @@ PRESETS_TTS: dict[str, dict] = {
         ),
         "params": {
             "exaggeration": 0.70,
-            "cfg_weight":   0.40,
-            "temperature":  0.80,
-            "rep_penalty":  1.30,
-            "min_p":        0.05,
-            "top_p":        0.95,
+            "cfg_weight": 0.40,
+            "temperature": 0.80,
+            "rep_penalty": 1.30,
+            "min_p": 0.05,
+            "top_p": 0.95,
         },
     },
-
     "🎓 E-Learning": {
         "description": "Clear, educational delivery. Measured pace, easy to follow.",
         "rationale_md": """\
@@ -249,14 +243,13 @@ PRESETS_TTS: dict[str, dict] = {
         ),
         "params": {
             "exaggeration": 0.45,
-            "cfg_weight":   0.60,
-            "temperature":  0.55,
-            "rep_penalty":  1.40,
-            "min_p":        0.07,
-            "top_p":        0.92,
+            "cfg_weight": 0.60,
+            "temperature": 0.55,
+            "rep_penalty": 1.40,
+            "min_p": 0.07,
+            "top_p": 0.92,
         },
     },
-
     "🎮 Game Character": {
         "description": "Distinctive NPC voice. Expressive, varied, high personality.",
         "rationale_md": """\
@@ -281,14 +274,13 @@ PRESETS_TTS: dict[str, dict] = {
         ),
         "params": {
             "exaggeration": 0.75,
-            "cfg_weight":   0.35,
-            "temperature":  0.95,
-            "rep_penalty":  1.20,
-            "min_p":        0.02,
-            "top_p":        1.0,
+            "cfg_weight": 0.35,
+            "temperature": 0.95,
+            "rep_penalty": 1.20,
+            "min_p": 0.02,
+            "top_p": 1.0,
         },
     },
-
     "🧘 Meditation / ASMR": {
         "description": "Soft, slow, intimate delivery. Minimal pace, maximum calm.",
         "rationale_md": """\
@@ -314,14 +306,13 @@ PRESETS_TTS: dict[str, dict] = {
         ),
         "params": {
             "exaggeration": 0.25,
-            "cfg_weight":   0.75,
-            "temperature":  0.40,
-            "rep_penalty":  1.20,
-            "min_p":        0.08,
-            "top_p":        0.88,
+            "cfg_weight": 0.75,
+            "temperature": 0.40,
+            "rep_penalty": 1.20,
+            "min_p": 0.08,
+            "top_p": 0.88,
         },
     },
-
     "🔬 Experimental": {
         "description": "Maximum expressiveness. Unpredictable and creative — may be unstable.",
         "rationale_md": """\
@@ -346,11 +337,11 @@ PRESETS_TTS: dict[str, dict] = {
         ),
         "params": {
             "exaggeration": 1.00,
-            "cfg_weight":   0.20,
-            "temperature":  1.20,
-            "rep_penalty":  1.10,
-            "min_p":        0.01,
-            "top_p":        1.0,
+            "cfg_weight": 0.20,
+            "temperature": 1.20,
+            "rep_penalty": 1.10,
+            "min_p": 0.01,
+            "top_p": 1.0,
         },
     },
 }
@@ -361,7 +352,6 @@ PRESETS_TTS: dict[str, dict] = {
 # ──────────────────────────────────────────────────────────────────────────────
 
 PRESETS_TURBO: dict[str, dict] = {
-
     "🎯 Default": {
         "description": "Balanced starting point for Turbo. Good for general use.",
         "rationale_md": """\
@@ -381,15 +371,14 @@ PRESETS_TURBO: dict[str, dict] = {
             "I know it looked confusing. [laugh] Don't worry, we'll sort it out."
         ),
         "params": {
-            "temperature":    0.80,
-            "top_k":          1000,
-            "top_p":          0.95,
-            "rep_penalty":    1.20,
-            "min_p":          0.0,
-            "norm_loudness":  True,
+            "temperature": 0.80,
+            "top_k": 1000,
+            "top_p": 0.95,
+            "rep_penalty": 1.20,
+            "min_p": 0.0,
+            "norm_loudness": True,
         },
     },
-
     "🤖 Voice Agent": {
         "description": "Production-ready voice agent. Crisp, clear, professional.",
         "rationale_md": """\
@@ -412,15 +401,14 @@ PRESETS_TURBO: dict[str, dict] = {
             "so I can pull up your details?"
         ),
         "params": {
-            "temperature":    0.60,
-            "top_k":          200,
-            "top_p":          0.90,
-            "rep_penalty":    1.30,
-            "min_p":          0.0,
-            "norm_loudness":  True,
+            "temperature": 0.60,
+            "top_k": 200,
+            "top_p": 0.90,
+            "rep_penalty": 1.30,
+            "min_p": 0.0,
+            "norm_loudness": True,
         },
     },
-
     "🎙️ Podcast Host": {
         "description": "Warm, engaging interview style. Natural with personality.",
         "rationale_md": """\
@@ -440,15 +428,14 @@ PRESETS_TURBO: dict[str, dict] = {
             "and trust me, you do not want to miss what they have to say."
         ),
         "params": {
-            "temperature":    0.85,
-            "top_k":          800,
-            "top_p":          0.95,
-            "rep_penalty":    1.20,
-            "min_p":          0.0,
-            "norm_loudness":  True,
+            "temperature": 0.85,
+            "top_k": 800,
+            "top_p": 0.95,
+            "rep_penalty": 1.20,
+            "min_p": 0.0,
+            "norm_loudness": True,
         },
     },
-
     "🧙 Character / NPC": {
         "description": "Distinctive character voice. Expressive and highly varied.",
         "rationale_md": """\
@@ -472,15 +459,14 @@ PRESETS_TURBO: dict[str, dict] = {
             "How disappointing."
         ),
         "params": {
-            "temperature":    1.05,
-            "top_k":          2000,
-            "top_p":          1.00,
-            "rep_penalty":    1.15,
-            "min_p":          0.0,
-            "norm_loudness":  False,
+            "temperature": 1.05,
+            "top_k": 2000,
+            "top_p": 1.00,
+            "rep_penalty": 1.15,
+            "min_p": 0.0,
+            "norm_loudness": False,
         },
     },
-
     "📻 Radio / Promo": {
         "description": "High-energy, upbeat delivery. Perfect for promos and short ads.",
         "rationale_md": """\
@@ -500,15 +486,14 @@ PRESETS_TURBO: dict[str, dict] = {
             "and all the news you need, coming right up."
         ),
         "params": {
-            "temperature":    0.90,
-            "top_k":          600,
-            "top_p":          0.92,
-            "rep_penalty":    1.30,
-            "min_p":          0.0,
-            "norm_loudness":  True,
+            "temperature": 0.90,
+            "top_k": 600,
+            "top_p": 0.92,
+            "rep_penalty": 1.30,
+            "min_p": 0.0,
+            "norm_loudness": True,
         },
     },
-
     "📞 IVR / Max Reliable": {
         "description": "Maximum consistency for IVR and automated phone systems.",
         "rationale_md": """\
@@ -532,12 +517,12 @@ PRESETS_TURBO: dict[str, dict] = {
             "Press one to reschedule."
         ),
         "params": {
-            "temperature":    0.50,
-            "top_k":          80,
-            "top_p":          0.85,
-            "rep_penalty":    1.40,
-            "min_p":          0.0,
-            "norm_loudness":  True,
+            "temperature": 0.50,
+            "top_k": 80,
+            "top_p": 0.85,
+            "rep_penalty": 1.40,
+            "min_p": 0.0,
+            "norm_loudness": True,
         },
     },
 }
@@ -555,6 +540,7 @@ PRESET_TURBO_NAMES: list[str] = list(PRESETS_TURBO.keys())
 # ──────────────────────────────────────────────────────────────────────────────
 # Lookup helpers
 # ──────────────────────────────────────────────────────────────────────────────
+
 
 def get_preset_tts(name: str) -> dict | None:
     """Return the PRESETS_TTS entry for *name*, or None if not found.

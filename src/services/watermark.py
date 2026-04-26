@@ -14,6 +14,7 @@ Verdict thresholds (mirrors app.py logic):
     score <= 0.1  → "not_detected"
     otherwise     → "inconclusive"
 """
+
 from __future__ import annotations
 
 from domain.models import WatermarkResult

@@ -1,0 +1,159 @@
+# .pre-commit-config.yaml
+# ────────────────────────────────────────────────────────────────────────────
+# Pre-commit hooks for chatterbox-explorer
+#
+# Install once after cloning:
+#   uv run pre-commit install                    # pre-commit stage
+#   uv run pre-commit install --hook-type pre-push  # pre-push stage
+#
+# Run manually against all files:
+#   uv run pre-commit run --all-files
+#
+# Update all hook revisions to latest tags:
+#   uv run pre-commit autoupdate
+#
+# Hook stages
+# ───────────
+# pre-commit (default) — runs on every `git commit`
+#   • ruff format  (check, no auto-write)
+#   • ruff lint    (auto-fix safe issues)
+#   • ty           (type check pure layers only)
+#   • standard file hygiene
+#
+# pre-push — runs on `git push` (slower, more thorough)
+#   • unit tests (283 fast tests, no real models needed)
+#
+# Design decisions
+# ────────────────
+# All Python hooks use `repo: local` with `language: system` so they run
+# inside our uv-managed virtualenv via `uv run`.  This means:
+#   1. Tool versions are pinned in uv.lock — no drift between local and CI.
+#   2. No duplicate installs — pre-commit reuses our .venv.
+#   3. src/ is on PYTHONPATH automatically (via uv run + pyproject.toml).
+# ────────────────────────────────────────────────────────────────────────────
+
+default_install_hook_types:
+  - pre-commit
+  - pre-push
+
+default_stages:
+  - pre-commit
+
+repos:
+  # ── Standard file hygiene ──────────────────────────────────────────────────
+  # These hooks are fast, language-agnostic, and catch trivial issues that
+  # would otherwise clutter diffs or break tooling downstream.
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      # Remove trailing whitespace from all text files.
+      - id: trailing-whitespace
+        args: [--markdown-linebreak-ext=md]
+
+      # Ensure every file ends with exactly one newline character.
+      - id: end-of-file-fixer
+
+      # Validate YAML syntax — catches broken pyproject.toml-adjacent configs.
+      - id: check-yaml
+
+      # Validate TOML syntax — catches malformed pyproject.toml early.
+      - id: check-toml
+
+      # Abort commit if merge-conflict markers (<<<<<<, =======, >>>>>>>) remain.
+      - id: check-merge-conflict
+
+      # Prevent accidentally committing large files (e.g. model weights, audio).
+      # Threshold: 500 KB — well above any source file but below any binary asset.
+      - id: check-added-large-files
+        args: [--maxkb=500]
+
+      # Catch accidental `import pdb; pdb.set_trace()` and `breakpoint()` calls.
+      - id: debug-statements
+
+      # Ensure module docstrings come before any code.
+      - id: check-docstring-first
+
+      # Detect private keys accidentally staged — important for HF_TOKEN etc.
+      - id: detect-private-key
+
+  # ── ruff — format check ───────────────────────────────────────────────────
+  # Runs `ruff format --check` (read-only) — exits non-zero if any file
+  # would be reformatted.  We do NOT auto-write in the hook; the developer
+  # runs `uv run ruff format` locally to fix and then re-stages.
+  #
+  # Why check-only instead of auto-write?
+  # Silently modifying staged files can cause surprising diffs where the
+  # developer's staged change looks different from what was committed.
+  # Making the check explicit forces a deliberate format-then-stage workflow.
+  - repo: local
+    hooks:
+      - id: ruff-format
+        name: ruff format (check)
+        entry: uv run ruff format --check
+        language: system
+        types_or: [python, pyi]
+        require_serial: true
+        # Run even if no Python files changed (e.g. only pyproject.toml changed).
+        always_run: false
+
+  # ── ruff — lint + safe auto-fix ───────────────────────────────────────────
+  # Runs `ruff check --fix` — applies all safe auto-fixes (unused imports,
+  # wrong import order, pyupgrade patterns) and then exits non-zero if any
+  # unfixable violations remain.
+  #
+  # Unfixable violations (e.g. undefined names, likely bugs) must be resolved
+  # manually before the commit proceeds.
+  - repo: local
+    hooks:
+      - id: ruff-lint
+        name: ruff lint (fix)
+        entry: uv run ruff check --fix
+        language: system
+        types_or: [python, pyi]
+        require_serial: true
+
+  # ── ty — static type checking (pure hexagonal layers only) ───────────────
+  # Checks src/domain/, src/ports/, and src/services/ — the three layers that
+  # have zero third-party framework imports and therefore benefit from strict
+  # type checking without stub-related noise.
+  #
+  # Adapters are intentionally excluded because torch, gradio, and
+  # chatterbox-tts lack complete type stubs, which would produce hundreds of
+  # unactionable "unknown-attribute" errors unrelated to our own code quality.
+  #
+  # pass_filenames: false — ty checks a directory tree, not individual files.
+  # always_run: true — type errors can appear in files not changed in this commit
+  #                    (e.g. a domain model change breaks a service elsewhere).
+  - repo: local
+    hooks:
+      - id: ty
+        name: ty (type check domain + ports + services)
+        entry: uv run ty check src/domain src/ports src/services
+        language: system
+        pass_filenames: false
+        always_run: true
+        require_serial: true
+
+  # ── pytest unit tests (pre-push only) ────────────────────────────────────
+  # Runs the full unit test suite (283 tests, ~0.3 s) before every `git push`.
+  # Integration tests (real model loading) are excluded — they require
+  # HuggingFace model downloads and GPU/MPS hardware.
+  #
+  # Why pre-push instead of pre-commit?
+  #   • 0.3 s is fast, but running on every commit (including WIP commits)
+  #     interrupts flow.  Pre-push is the right tradeoff: it catches
+  #     regressions before they reach the remote while not slowing down
+  #     local iteration.
+  #
+  # --no-header -q: minimal output — only failures are shown.
+  # --tb=short:     concise tracebacks (overrides pyproject.toml default).
+  - repo: local
+    hooks:
+      - id: pytest-unit
+        name: pytest (unit tests)
+        entry: uv run pytest tests/unit/ --no-header -q --tb=short
+        language: system
+        pass_filenames: false
+        always_run: true
+        require_serial: true
+        stages: [pre-push]

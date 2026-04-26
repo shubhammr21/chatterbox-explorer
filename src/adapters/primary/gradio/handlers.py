@@ -20,9 +20,11 @@ Architecture contract:
     to_gradio_audio(result) after every AudioResult, giving Gradio progressive
     audio updates.
 """
+
 from __future__ import annotations
 
 import logging
+from typing import TYPE_CHECKING
 
 import gradio as gr
 
@@ -39,14 +41,21 @@ from domain.models import (
     VoiceConversionRequest,
 )
 from domain.presets import PRESETS_TTS, PRESETS_TURBO
-from ports.input import (
-    IModelManagerService,
-    IMultilingualTTSService,
-    ITTSService,
-    ITurboTTSService,
-    IVoiceConversionService,
-    IWatermarkService,
-)
+
+if TYPE_CHECKING:
+    # Port ABCs are only referenced in type annotations (constructor parameters).
+    # Moving them here avoids importing the ABC hierarchy at runtime while
+    # keeping full type-checker visibility.  from __future__ import annotations
+    # (above) ensures all annotations are treated as strings, so these imports
+    # are never needed at runtime.
+    from ports.input import (
+        IModelManagerService,
+        IMultilingualTTSService,
+        ITTSService,
+        ITurboTTSService,
+        IVoiceConversionService,
+        IWatermarkService,
+    )
 
 log = logging.getLogger(__name__)
 
@@ -263,10 +272,7 @@ class GradioHandlers:
             result = self._watermark.detect(audio_path)
 
             if not result.available or result.verdict == "unavailable":
-                return (
-                    "⚠️  WATERMARK DETECTION UNAVAILABLE\n\n"
-                    + result.message
-                )
+                return "⚠️  WATERMARK DETECTION UNAVAILABLE\n\n" + result.message
 
             if result.verdict == "detected":
                 verdict_str = "✅  WATERMARK DETECTED"
@@ -344,11 +350,7 @@ class GradioHandlers:
 
         # ── System RAM gauge ──────────────────────────────────────────────────
         sys_pct = stats.sys_percent
-        bar_col = (
-            "#22c55e" if sys_pct < 60
-            else "#f59e0b" if sys_pct < 80
-            else "#ef4444"
-        )
+        bar_col = "#22c55e" if sys_pct < 60 else "#f59e0b" if sys_pct < 80 else "#ef4444"
 
         html = (
             '<div style="font-family:Inter,ui-sans-serif,sans-serif;'
@@ -360,13 +362,13 @@ class GradioHandlers:
             'height:12px;overflow:hidden;">\n'
             f'        <div style="background:{bar_col};width:{sys_pct:.0f}%;'
             'height:100%;border-radius:5px;"></div>\n'
-            '      </div>\n'
+            "      </div>\n"
             '      <span style="color:#6b7280;white-space:nowrap;min-width:240px;">\n'
-            f'        {stats.sys_used_gb:.1f} / {stats.sys_total_gb:.1f} GB\n'
-            f'        &nbsp;({sys_pct:.0f}%)\n'
-            f'        &nbsp;·&nbsp; this app: {stats.proc_rss_gb:.2f} GB\n'
-            '      </span>\n'
-            '    </div>'
+            f"        {stats.sys_used_gb:.1f} / {stats.sys_total_gb:.1f} GB\n"
+            f"        &nbsp;({sys_pct:.0f}%)\n"
+            f"        &nbsp;·&nbsp; this app: {stats.proc_rss_gb:.2f} GB\n"
+            "      </span>\n"
+            "    </div>"
         )
 
         # ── Device memory gauge (MPS / CUDA only) ─────────────────────────────
@@ -374,11 +376,7 @@ class GradioHandlers:
             dev_gb = stats.device_driver_gb
             dev_max = stats.device_max_gb
             dev_pct = min(dev_gb / dev_max * 100.0, 100.0) if dev_max > 0 else 0.0
-            dev_col = (
-                "#22c55e" if dev_pct < 60
-                else "#f59e0b" if dev_pct < 80
-                else "#ef4444"
-            )
+            dev_col = "#22c55e" if dev_pct < 60 else "#f59e0b" if dev_pct < 80 else "#ef4444"
 
             is_mps = stats.device_name == "Apple Silicon MPS"
             label = "MPS (unified)" if is_mps else stats.device_name
@@ -398,10 +396,10 @@ class GradioHandlers:
                 'height:12px;overflow:hidden;">\n'
                 f'        <div style="background:{dev_col};width:{dev_pct:.0f}%;'
                 'height:100%;border-radius:5px;"></div>\n'
-                '      </div>\n'
+                "      </div>\n"
                 f'      <span style="color:#6b7280;white-space:nowrap;'
                 f'min-width:240px;">{detail}</span>\n'
-                '    </div>'
+                "    </div>"
             )
 
         html += "\n  </div>\n"
@@ -409,7 +407,7 @@ class GradioHandlers:
         # ── Per-model status table ─────────────────────────────────────────────
         html += (
             '  <table style="width:100%;border-collapse:collapse;font-size:13px;">\n'
-            '    <thead>\n'
+            "    <thead>\n"
             '      <tr style="background:#f9fafb;border-bottom:2px solid #e5e7eb;">\n'
             '        <th style="text-align:left;padding:8px 10px;'
             'font-weight:600;">Model</th>\n'
@@ -421,45 +419,45 @@ class GradioHandlers:
             'font-weight:600;">Disk Cache</th>\n'
             '        <th style="text-align:center;padding:8px;'
             'font-weight:600;">In Memory</th>\n'
-            '      </tr>\n'
-            '    </thead>\n'
-            '    <tbody>'
+            "      </tr>\n"
+            "    </thead>\n"
+            "    <tbody>"
         )
 
         for status in model_statuses:
             mem_badge = (
                 '<span style="background:#dcfce7;color:#166534;padding:2px 10px;'
                 'border-radius:12px;font-size:11px;font-weight:600;">✅ Loaded</span>'
-                if status.in_memory else
-                '<span style="background:#f3f4f6;color:#9ca3af;padding:2px 10px;'
+                if status.in_memory
+                else '<span style="background:#f3f4f6;color:#9ca3af;padding:2px 10px;'
                 'border-radius:12px;font-size:11px;">— Unloaded</span>'
             )
             disk_badge = (
                 '<span style="background:#dbeafe;color:#1e40af;padding:2px 10px;'
                 'border-radius:12px;font-size:11px;">💾 Cached</span>'
-                if status.on_disk else
-                '<span style="background:#fef9c3;color:#92400e;padding:2px 10px;'
+                if status.on_disk
+                else '<span style="background:#fef9c3;color:#92400e;padding:2px 10px;'
                 'border-radius:12px;font-size:11px;">⬇ Not Downloaded</span>'
             )
 
             html += (
                 '\n      <tr style="border-bottom:1px solid #f3f4f6;">\n'
                 '        <td style="padding:10px 10px;">\n'
-                f'          <strong>{status.display_name}</strong>'
+                f"          <strong>{status.display_name}</strong>"
                 f'          <span style="color:#9ca3af;font-size:11px;'
                 f'margin-left:6px;">{status.class_name}</span><br>\n'
                 f'          <span style="color:#6b7280;font-size:11px;">'
-                f'{status.description}</span>\n'
-                '        </td>\n'
+                f"{status.description}</span>\n"
+                "        </td>\n"
                 f'        <td style="text-align:center;padding:10px;'
                 f'color:#6b7280;">{status.params}</td>\n'
                 f'        <td style="text-align:center;padding:10px;'
                 f'color:#6b7280;">~{status.size_gb:.1f} GB</td>\n'
                 f'        <td style="text-align:center;padding:10px;">'
-                f'{disk_badge}</td>\n'
+                f"{disk_badge}</td>\n"
                 f'        <td style="text-align:center;padding:10px;">'
-                f'{mem_badge}</td>\n'
-                '      </tr>'
+                f"{mem_badge}</td>\n"
+                "      </tr>"
             )
 
         html += "\n    </tbody>\n  </table>\n</div>"

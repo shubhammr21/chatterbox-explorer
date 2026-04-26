@@ -88,7 +88,7 @@ def main(argv: list[str] | None = None) -> None:
     # ── Step 2a: logging + warning suppression ────────────────────────────────
     # Must happen before any library import that calls logging.getLogger or
     # warnings.warn at import time (huggingface_hub, transformers, diffusers).
-    from logging_config import configure  # noqa: PLC0415
+    from logging_config import configure
 
     configure()
 
@@ -106,7 +106,7 @@ def main(argv: list[str] | None = None) -> None:
     # diffusers.LoRACompatibleLinear  → nn.Linear
     # Both must fire before the first lazy chatterbox model import.
     try:
-        import compat  # noqa: PLC0415  (root-level module; compat.py lives at project root)
+        import compat
 
         compat.apply_diffusers_lora_migration()
         compat.apply_torch_sdp_kernel_migration()
@@ -117,9 +117,7 @@ def main(argv: list[str] | None = None) -> None:
     # resemble-perth open-source edition ships with PerthImplicitWatermarker=None.
     # Chatterbox models call perth.PerthImplicitWatermarker() in __init__, so we
     # must patch before any chatterbox class is instantiated.
-    import numpy as np  # noqa: PLC0415
-
-    import perth as _perth_mod  # noqa: PLC0415
+    import perth as _perth_mod
 
     watermark_available: bool = _perth_mod.PerthImplicitWatermarker is not None
 
@@ -134,14 +132,14 @@ def main(argv: list[str] | None = None) -> None:
 
             def apply_watermark(
                 self,
-                audio: np.ndarray,
+                audio: object,
                 sample_rate: int,  # must match chatterbox keyword arg name
-            ) -> np.ndarray:
+            ) -> object:
                 return audio
 
             def get_watermark(
                 self,
-                audio: np.ndarray,
+                audio: object,
                 sample_rate: int,  # must match chatterbox keyword arg name
             ) -> float:
                 return 0.0
@@ -150,7 +148,7 @@ def main(argv: list[str] | None = None) -> None:
         log.info("No-op PerTh watermarker installed ✓ — models will load correctly.")
 
     # ── Step 3: bootstrap ─────────────────────────────────────────────────────
-    from bootstrap import build_app  # noqa: PLC0415
+    from bootstrap import build_app
 
     demo, _config = build_app(watermark_available=watermark_available)
 
@@ -163,7 +161,7 @@ def main(argv: list[str] | None = None) -> None:
     atexit.register(demo.close)
 
     # ── Step 5: launch ────────────────────────────────────────────────────────
-    from adapters.primary.gradio.ui import (  # noqa: PLC0415
+    from adapters.primary.gradio.ui import (
         GRADIO_CSS,
         GRADIO_THEME,
     )

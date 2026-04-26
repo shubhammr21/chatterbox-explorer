@@ -1,4 +1,5 @@
 """PerTh watermark detection adapter."""
+
 import logging
 
 from ports.output import IWatermarkDetector

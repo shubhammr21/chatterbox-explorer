@@ -15,18 +15,17 @@ Exit code is 0 when every test passes, 1 on any failure.
 from __future__ import annotations
 
 import argparse
-import contextlib
+from collections.abc import Callable
 import logging
 import sys
 import traceback
 import unittest.mock as mock
-from typing import Callable, List, Tuple
 
 # ──────────────────────────────────────────────────────────────────────────────
 # Minimal test harness  (no pytest dependency)
 # ──────────────────────────────────────────────────────────────────────────────
 
-_RESULTS: List[Tuple[str, bool, str]] = []   # (name, passed, detail)
+_RESULTS: list[tuple[str, bool, str]] = []  # (name, passed, detail)
 _VERBOSE = False
 
 
@@ -43,6 +42,7 @@ def _fail(name: str, detail: str) -> None:
 
 def test(name: str) -> Callable:
     """Decorator that wraps a function as a named test case."""
+
     def decorator(fn: Callable) -> Callable:
         def wrapper() -> None:
             try:
@@ -52,12 +52,14 @@ def test(name: str) -> Callable:
                     _pass(name)
             except AssertionError as exc:
                 _fail(name, str(exc) or "AssertionError (no message)")
-            except Exception as exc:  # noqa: BLE001
+            except Exception as exc:
                 _fail(name, f"{type(exc).__name__}: {exc}")
                 if _VERBOSE:
                     traceback.print_exc()
+
         wrapper.__name__ = name
         return wrapper
+
     return decorator
 
 
@@ -69,16 +71,16 @@ def _section(title: str) -> None:
 # Environment probe  (printed once, before any tests)
 # ──────────────────────────────────────────────────────────────────────────────
 
+
 def _probe_environment() -> None:
-    import torch  # noqa: PLC0415
+    import torch
+
     print(f"\n  torch version : {torch.__version__}")
     print(f"  CUDA available: {torch.cuda.is_available()}")
     mps_backend = getattr(torch.backends, "mps", None)
     mps_ok = mps_backend is not None and torch.backends.mps.is_available()
     print(f"  MPS available : {mps_ok}")
-    sdpa_present = hasattr(torch.nn, "attention") and hasattr(
-        torch.nn.attention, "sdpa_kernel"
-    )
+    sdpa_present = hasattr(torch.nn, "attention") and hasattr(torch.nn.attention, "sdpa_kernel")
     print(f"  sdpa_kernel   : {sdpa_present}")
     print()
 
@@ -87,15 +89,18 @@ def _probe_environment() -> None:
 # Helper to reset patch state between tests
 # ──────────────────────────────────────────────────────────────────────────────
 
+
 def _ensure_patched() -> None:
     """Make sure torch.backends.cuda.sdp_kernel points at our shim."""
-    import compat  # noqa: PLC0415
+    import compat
+
     compat._patch_torch_backends()
 
 
 def _ensure_unpatched() -> None:
     """Restore the original (or remove shim) for isolation."""
-    import compat  # noqa: PLC0415
+    import compat
+
     compat._unpatch_torch_backends()
 
 
@@ -108,23 +113,24 @@ _section("Section 1 — Import & auto-patch on module load")
 
 @test("import compat does not raise")
 def t_import() -> None:
-    import compat  # noqa: PLC0415, F401
+    import compat  # noqa: F401
+
     _pass("import compat does not raise")
 
 
 @test("auto-patch: torch.backends.cuda.sdp_kernel is shim after import")
 def t_auto_patch() -> None:
-    import compat  # noqa: PLC0415
-    import torch.backends.cuda as _cuda  # noqa: PLC0415
-    assert _cuda.sdp_kernel is compat.sdp_kernel, (
-        f"Expected shim, got {_cuda.sdp_kernel!r}"
-    )
+    import compat
+    import torch.backends.cuda as _cuda
+
+    assert _cuda.sdp_kernel is compat.sdp_kernel, f"Expected shim, got {_cuda.sdp_kernel!r}"
     _pass("auto-patch: torch.backends.cuda.sdp_kernel is shim after import")
 
 
 @test("auto-patch: original stored as _sdp_kernel_orig")
 def t_orig_stored() -> None:
-    import torch.backends.cuda as _cuda  # noqa: PLC0415
+    import torch.backends.cuda as _cuda
+
     assert hasattr(_cuda, "_sdp_kernel_orig"), (
         "torch.backends.cuda._sdp_kernel_orig not found after patch"
     )
@@ -133,7 +139,8 @@ def t_orig_stored() -> None:
 
 @test("auto-patch: _sdp_kernel_orig is callable")
 def t_orig_callable() -> None:
-    import torch.backends.cuda as _cuda  # noqa: PLC0415
+    import torch.backends.cuda as _cuda
+
     orig = getattr(_cuda, "_sdp_kernel_orig", None)
     if orig is None:
         # Attribute was absent in this build — acceptable
@@ -153,11 +160,14 @@ _section("Section 2 — Context manager basic usage")
 @test("with sdp_kernel(): body executes (all flags=True)")
 def t_cm_all_true() -> None:
     _ensure_patched()
-    import compat  # noqa: PLC0415
+    import compat
+
     entered = []
     with compat.sdp_kernel(
-        enable_flash=True, enable_math=True,
-        enable_mem_efficient=True, enable_cudnn=True,
+        enable_flash=True,
+        enable_math=True,
+        enable_mem_efficient=True,
+        enable_cudnn=True,
     ):
         entered.append(True)
     assert entered == [True], "Context manager body was never entered"
@@ -167,11 +177,14 @@ def t_cm_all_true() -> None:
 @test("with sdp_kernel(): body executes (math-only)")
 def t_cm_math_only() -> None:
     _ensure_patched()
-    import compat  # noqa: PLC0415
+    import compat
+
     entered = []
     with compat.sdp_kernel(
-        enable_flash=False, enable_math=True,
-        enable_mem_efficient=False, enable_cudnn=False,
+        enable_flash=False,
+        enable_math=True,
+        enable_mem_efficient=False,
+        enable_cudnn=False,
     ):
         entered.append(True)
     assert entered == [True], "Context manager body was never entered"
@@ -181,7 +194,8 @@ def t_cm_math_only() -> None:
 @test("with sdp_kernel(): body executes with default args")
 def t_cm_defaults() -> None:
     _ensure_patched()
-    import compat  # noqa: PLC0415
+    import compat
+
     entered = []
     with compat.sdp_kernel():
         entered.append(True)
@@ -192,7 +206,7 @@ def t_cm_defaults() -> None:
 @test("with sdp_kernel(): exceptions inside body propagate cleanly")
 def t_cm_exception_propagates() -> None:
     _ensure_patched()
-    import compat  # noqa: PLC0415
+    import compat
 
     class _Sentinel(Exception):
         pass
@@ -211,7 +225,8 @@ def t_cm_exception_propagates() -> None:
 @test("monkey-patched path: torch.backends.cuda.sdp_kernel() works")
 def t_monkey_patch_path() -> None:
     _ensure_patched()
-    import torch  # noqa: PLC0415
+    import torch
+
     entered = []
     with torch.backends.cuda.sdp_kernel(enable_flash=False, enable_math=True):
         entered.append(True)
@@ -227,10 +242,7 @@ _section("Section 3 — _build_backends() parameter mapping")
 
 import torch as _torch  # noqa: E402
 
-_SDPA_AVAILABLE = (
-    hasattr(_torch.nn, "attention")
-    and hasattr(_torch.nn.attention, "sdpa_kernel")
-)
+_SDPA_AVAILABLE = hasattr(_torch.nn, "attention") and hasattr(_torch.nn.attention, "sdpa_kernel")
 _MPS_ONLY: bool = False
 if _SDPA_AVAILABLE:
     _mps_b = getattr(_torch.backends, "mps", None)
@@ -243,8 +255,8 @@ def t_bb_math_only() -> None:
     if not _SDPA_AVAILABLE:
         _pass("_build_backends: MATH only  [sdpa_kernel unavailable — skipped]")
         return
-    import compat  # noqa: PLC0415
-    from torch.nn.attention import SDPBackend  # noqa: PLC0415
+    import compat
+    from torch.nn.attention import SDPBackend
 
     result = compat._build_backends(False, True, False, False)
     assert SDPBackend.MATH in result, f"MATH missing from {result}"
@@ -259,15 +271,17 @@ def t_bb_flash() -> None:
     if not _SDPA_AVAILABLE:
         _pass("_build_backends: FLASH_ATTENTION  [sdpa_kernel unavailable — skipped]")
         return
-    import compat  # noqa: PLC0415
-    from torch.nn.attention import SDPBackend  # noqa: PLC0415
+    import compat
+    from torch.nn.attention import SDPBackend
 
     if _MPS_ONLY:
         # On MPS-only, flash is dropped and MATH is returned regardless
         result = compat._build_backends(True, True, False, False)
         assert SDPBackend.MATH in result
         assert SDPBackend.FLASH_ATTENTION not in result
-        _pass("_build_backends: FLASH_ATTENTION present when enable_flash=True  [MPS-only: correctly dropped]")
+        _pass(
+            "_build_backends: FLASH_ATTENTION present when enable_flash=True  [MPS-only: correctly dropped]"
+        )
     else:
         result = compat._build_backends(True, False, False, False)
         assert SDPBackend.FLASH_ATTENTION in result, f"FLASH_ATTENTION missing from {result}"
@@ -279,8 +293,8 @@ def t_bb_efficient() -> None:
     if not _SDPA_AVAILABLE:
         _pass("_build_backends: EFFICIENT_ATTENTION  [sdpa_kernel unavailable — skipped]")
         return
-    import compat  # noqa: PLC0415
-    from torch.nn.attention import SDPBackend  # noqa: PLC0415
+    import compat
+    from torch.nn.attention import SDPBackend
 
     if _MPS_ONLY:
         result = compat._build_backends(False, True, True, False)
@@ -289,7 +303,9 @@ def t_bb_efficient() -> None:
         _pass("_build_backends: EFFICIENT_ATTENTION present  [MPS-only: correctly dropped]")
     else:
         result = compat._build_backends(False, False, True, False)
-        assert SDPBackend.EFFICIENT_ATTENTION in result, f"EFFICIENT_ATTENTION missing from {result}"
+        assert SDPBackend.EFFICIENT_ATTENTION in result, (
+            f"EFFICIENT_ATTENTION missing from {result}"
+        )
         _pass("_build_backends: EFFICIENT_ATTENTION present when enable_mem_efficient=True")
 
 
@@ -298,8 +314,8 @@ def t_bb_cudnn() -> None:
     if not _SDPA_AVAILABLE:
         _pass("_build_backends: CUDNN_ATTENTION  [sdpa_kernel unavailable — skipped]")
         return
-    import compat  # noqa: PLC0415
-    from torch.nn.attention import SDPBackend  # noqa: PLC0415
+    import compat
+    from torch.nn.attention import SDPBackend
 
     if _MPS_ONLY:
         result = compat._build_backends(False, True, False, True)
@@ -317,8 +333,8 @@ def t_bb_all_cuda() -> None:
     if not _SDPA_AVAILABLE or _MPS_ONLY:
         _pass("_build_backends: all four backends  [skipped — MPS-only or sdpa unavailable]")
         return
-    import compat  # noqa: PLC0415
-    from torch.nn.attention import SDPBackend  # noqa: PLC0415
+    import compat
+    from torch.nn.attention import SDPBackend
 
     result = compat._build_backends(True, True, True, True)
     for backend in (
@@ -336,8 +352,8 @@ def t_bb_order() -> None:
     if not _SDPA_AVAILABLE or _MPS_ONLY:
         _pass("_build_backends: ordering  [skipped — MPS-only or sdpa unavailable]")
         return
-    import compat  # noqa: PLC0415
-    from torch.nn.attention import SDPBackend  # noqa: PLC0415
+    import compat
+    from torch.nn.attention import SDPBackend
 
     result = compat._build_backends(True, True, False, False)
     flash_idx = result.index(SDPBackend.FLASH_ATTENTION)
@@ -360,13 +376,14 @@ def t_bb_all_false_raises() -> None:
     if not _SDPA_AVAILABLE:
         _pass("_build_backends: ValueError all-False  [sdpa_kernel unavailable — skipped]")
         return
-    import compat  # noqa: PLC0415
+    import compat
 
     if _MPS_ONLY:
         # On MPS-only the shim forces MATH — ValueError cannot be triggered
         # through normal flag usage; verify no error is raised instead.
         result = compat._build_backends(False, False, False, False)
-        from torch.nn.attention import SDPBackend  # noqa: PLC0415
+        from torch.nn.attention import SDPBackend
+
         assert SDPBackend.MATH in result
         _pass("_build_backends: ValueError all-False  [MPS-only: MATH forced, no ValueError — OK]")
         return
@@ -385,13 +402,15 @@ def t_cm_all_false_raises() -> None:
     if not _SDPA_AVAILABLE or _MPS_ONLY:
         _pass("sdp_kernel ValueError propagation  [skipped]")
         return
-    import compat  # noqa: PLC0415
+    import compat
 
     raised = False
     try:
         with compat.sdp_kernel(
-            enable_flash=False, enable_math=False,
-            enable_mem_efficient=False, enable_cudnn=False,
+            enable_flash=False,
+            enable_math=False,
+            enable_mem_efficient=False,
+            enable_cudnn=False,
         ):
             pass
     except ValueError:
@@ -405,15 +424,13 @@ def t_bb_mps_override() -> None:
     if not _SDPA_AVAILABLE:
         _pass("_build_backends: MPS override  [sdpa_kernel unavailable — skipped]")
         return
-    import compat  # noqa: PLC0415
-    from torch.nn.attention import SDPBackend  # noqa: PLC0415
+    import compat
+    from torch.nn.attention import SDPBackend
 
     # Simulate MPS-only environment by patching _is_mps_only to return True
     with mock.patch.object(compat, "_is_mps_only", return_value=True):
         result = compat._build_backends(True, True, True, True)
-    assert result == [SDPBackend.MATH], (
-        f"Expected [MATH] on MPS-only, got {result}"
-    )
+    assert result == [SDPBackend.MATH], f"Expected [MATH] on MPS-only, got {result}"
     _pass("_build_backends: MPS-only forces [MATH] regardless of all flags=True")
 
 
@@ -422,19 +439,25 @@ def t_bb_mps_math_false_warns() -> None:
     if not _SDPA_AVAILABLE:
         _pass("_build_backends: MPS UserWarning  [sdpa_kernel unavailable — skipped]")
         return
-    import compat  # noqa: PLC0415
-    from torch.nn.attention import SDPBackend  # noqa: PLC0415
+    import warnings as _warnings
 
-    import warnings as _warnings  # noqa: PLC0415
-    with mock.patch.object(compat, "_is_mps_only", return_value=True):
-        with _warnings.catch_warnings(record=True) as w:
-            _warnings.simplefilter("always")
-            result = compat._build_backends(True, False, True, True)
+    import compat
+    from torch.nn.attention import SDPBackend
+
+    with (
+        mock.patch.object(compat, "_is_mps_only", return_value=True),
+        _warnings.catch_warnings(record=True) as w,
+    ):
+        _warnings.simplefilter("always")
+        result = compat._build_backends(True, False, True, True)
 
     assert result == [SDPBackend.MATH]
     user_warnings = [x for x in w if issubclass(x.category, UserWarning)]
     assert len(user_warnings) >= 1, "Expected at least one UserWarning for enable_math=False on MPS"
-    assert "math" in str(user_warnings[0].message).lower() or "mps" in str(user_warnings[0].message).lower()
+    assert (
+        "math" in str(user_warnings[0].message).lower()
+        or "mps" in str(user_warnings[0].message).lower()
+    )
     _pass("_build_backends: MPS-only issues UserWarning when enable_math=False")
 
 
@@ -447,11 +470,11 @@ _section("Section 5 — Patch / unpatch lifecycle")
 
 @test("_patch_torch_backends: idempotent (double-patch safe)")
 def t_double_patch() -> None:
-    import compat  # noqa: PLC0415
-    import torch.backends.cuda as _cuda  # noqa: PLC0415
+    import compat
+    import torch.backends.cuda as _cuda
 
     _ensure_patched()
-    result = compat._patch_torch_backends()   # second call
+    result = compat._patch_torch_backends()  # second call
     # Should detect already-patched state and return True
     assert result is True
     assert _cuda.sdp_kernel is compat.sdp_kernel
@@ -460,8 +483,8 @@ def t_double_patch() -> None:
 
 @test("_unpatch_torch_backends: restores original symbol")
 def t_unpatch_restores() -> None:
-    import compat  # noqa: PLC0415
-    import torch.backends.cuda as _cuda  # noqa: PLC0415
+    import compat
+    import torch.backends.cuda as _cuda
 
     _ensure_patched()
     orig = getattr(_cuda, "_sdp_kernel_orig", None)
@@ -478,8 +501,8 @@ def t_unpatch_restores() -> None:
 
 @test("_unpatch_torch_backends: removes _sdp_kernel_orig sentinel")
 def t_unpatch_removes_sentinel() -> None:
-    import compat  # noqa: PLC0415
-    import torch.backends.cuda as _cuda  # noqa: PLC0415
+    import compat
+    import torch.backends.cuda as _cuda
 
     _ensure_patched()
     compat._unpatch_torch_backends()
@@ -491,9 +514,9 @@ def t_unpatch_removes_sentinel() -> None:
 
 @test("_unpatch_torch_backends: returns False when no patch was applied")
 def t_unpatch_when_clean() -> None:
-    import compat  # noqa: PLC0415
+    import compat
 
-    _ensure_unpatched()   # make sure it's clean first
+    _ensure_unpatched()  # make sure it's clean first
     result = compat._unpatch_torch_backends()
     assert result is False, f"Expected False, got {result!r}"
     _pass("_unpatch_torch_backends: returns False when no patch was applied")
@@ -501,13 +524,13 @@ def t_unpatch_when_clean() -> None:
 
 @test("patch → unpatch → re-patch cycle is safe")
 def t_repatch_cycle() -> None:
-    import compat  # noqa: PLC0415
-    import torch.backends.cuda as _cuda  # noqa: PLC0415
+    import compat
+    import torch.backends.cuda as _cuda
 
     compat._unpatch_torch_backends()
     compat._patch_torch_backends()
     compat._unpatch_torch_backends()
-    compat._patch_torch_backends()   # final state: patched
+    compat._patch_torch_backends()  # final state: patched
 
     assert _cuda.sdp_kernel is compat.sdp_kernel
     _pass("patch → unpatch → re-patch cycle is safe")
@@ -522,19 +545,21 @@ _section("Section 6 — Graceful no-op when sdpa_kernel unavailable")
 
 @test("sdp_kernel no-op: body still executes when _SDPA_KERNEL_AVAILABLE=False")
 def t_noop_executes() -> None:
-    import compat  # noqa: PLC0415
+    import compat
 
     entered = []
-    with mock.patch.object(compat, "_SDPA_KERNEL_AVAILABLE", False):
-        with compat.sdp_kernel(enable_flash=True, enable_math=True):
-            entered.append(True)
+    with (
+        mock.patch.object(compat, "_SDPA_KERNEL_AVAILABLE", False),
+        compat.sdp_kernel(enable_flash=True, enable_math=True),
+    ):
+        entered.append(True)
     assert entered == [True], "Body should still execute in no-op path"
     _pass("sdp_kernel no-op: body still executes when _SDPA_KERNEL_AVAILABLE=False")
 
 
 @test("sdp_kernel no-op: exceptions still propagate when _SDPA_KERNEL_AVAILABLE=False")
 def t_noop_exception_propagates() -> None:
-    import compat  # noqa: PLC0415
+    import compat
 
     class _Boom(Exception):
         pass
@@ -559,7 +584,8 @@ _section("Section 7 — _is_mps_only() device detection helper")
 
 @test("_is_mps_only: returns bool")
 def t_is_mps_only_type() -> None:
-    import compat  # noqa: PLC0415
+    import compat
+
     result = compat._is_mps_only()
     assert isinstance(result, bool), f"Expected bool, got {type(result)}"
     _pass("_is_mps_only: returns bool")
@@ -567,7 +593,7 @@ def t_is_mps_only_type() -> None:
 
 @test("_is_mps_only: False when CUDA is available (simulated)")
 def t_is_mps_only_false_on_cuda() -> None:
-    import compat  # noqa: PLC0415
+    import compat
 
     with mock.patch("torch.cuda.is_available", return_value=True):
         result = compat._is_mps_only()
@@ -577,11 +603,12 @@ def t_is_mps_only_false_on_cuda() -> None:
 
 @test("_is_mps_only: True when MPS=True and CUDA=False (simulated)")
 def t_is_mps_only_true_simulated() -> None:
-    import compat  # noqa: PLC0415
+    import compat
 
     # We need to mock both cuda.is_available() and mps.is_available()
     with mock.patch("torch.cuda.is_available", return_value=False):
-        import torch  # noqa: PLC0415
+        import torch
+
         mps_backend = getattr(torch.backends, "mps", None)
         if mps_backend is None:
             _pass("_is_mps_only: True when MPS=True  [mps backend absent in build — skipped]")
@@ -601,7 +628,8 @@ _section("Section 8 — _active_device_label() helper")
 
 @test("_active_device_label: returns a non-empty string")
 def t_device_label_str() -> None:
-    import compat  # noqa: PLC0415
+    import compat
+
     label = compat._active_device_label()
     assert isinstance(label, str) and label, f"Expected non-empty str, got {label!r}"
     _pass("_active_device_label: returns a non-empty string")
@@ -609,8 +637,8 @@ def t_device_label_str() -> None:
 
 @test("_active_device_label: returns 'cpu' when CUDA and MPS unavailable (simulated)")
 def t_device_label_cpu() -> None:
-    import compat  # noqa: PLC0415
-    import torch  # noqa: PLC0415
+    import compat
+    import torch
 
     mps_backend = getattr(torch.backends, "mps", None)
     ctx = mock.patch("torch.cuda.is_available", return_value=False)
@@ -629,6 +657,7 @@ def t_device_label_cpu() -> None:
 # ──────────────────────────────────────────────────────────────────────────────
 # Run all tests
 # ──────────────────────────────────────────────────────────────────────────────
+
 
 def _run_all() -> int:
     """Execute every test function and return exit code."""
@@ -671,7 +700,7 @@ def _run_all() -> int:
 
     passed = sum(1 for _, ok, _ in _RESULTS if ok)
     failed = sum(1 for _, ok, _ in _RESULTS if not ok)
-    total  = len(_RESULTS)
+    total = len(_RESULTS)
 
     print(f"\n{'─' * 64}")
     colour = "\033[32m" if failed == 0 else "\033[31m"
@@ -680,13 +709,14 @@ def _run_all() -> int:
 
 
 def _parse_args() -> None:
-    global _VERBOSE  # noqa: PLW0603
+    global _VERBOSE
     parser = argparse.ArgumentParser(
         description="Verify compat.py shim behaviour",
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument(
-        "-v", "--verbose",
+        "-v",
+        "--verbose",
         action="store_true",
         help="Show DEBUG log output and full tracebacks on failure",
     )

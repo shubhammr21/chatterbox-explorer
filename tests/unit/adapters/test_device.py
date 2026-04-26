@@ -12,6 +12,7 @@ Both functions live in:
 torch is required at test-time (imported via pytest.importorskip).
 numpy and the stdlib random module are also exercised by set_seed tests.
 """
+
 from __future__ import annotations
 
 import random
@@ -25,10 +26,10 @@ torch = pytest.importorskip("torch", reason="torch required for device adapter t
 
 from adapters.secondary.device import detect_device, set_seed
 
-
 # ──────────────────────────────────────────────────────────────────────────────
 # detect_device
 # ──────────────────────────────────────────────────────────────────────────────
+
 
 class TestDetectDevice:
     """Tests for the detect_device() helper."""
@@ -38,16 +39,13 @@ class TestDetectDevice:
     def test_detect_device_returns_string(self):
         """detect_device() must return a str, not None or some other type."""
         result = detect_device()
-        assert isinstance(result, str), (
-            f"Expected str, got {type(result).__name__!r}"
-        )
+        assert isinstance(result, str), f"Expected str, got {type(result).__name__!r}"
 
     def test_detect_device_valid_values(self):
         """Return value must be one of the three recognised device strings."""
         result = detect_device()
         assert result in self.VALID_DEVICES, (
-            f"detect_device() returned {result!r}; "
-            f"expected one of {sorted(self.VALID_DEVICES)}"
+            f"detect_device() returned {result!r}; expected one of {sorted(self.VALID_DEVICES)}"
         )
 
     def test_detect_device_not_empty(self):
@@ -87,6 +85,7 @@ class TestDetectDevice:
 # ──────────────────────────────────────────────────────────────────────────────
 # set_seed
 # ──────────────────────────────────────────────────────────────────────────────
+
 
 class TestSetSeed:
     """Tests for the set_seed() helper."""
@@ -144,8 +143,7 @@ class TestSetSeed:
         actual = torch.randn(8).tolist()
 
         assert actual == expected, (
-            "set_seed(7) did not produce the same torch random output as "
-            "torch.manual_seed(7)"
+            "set_seed(7) did not produce the same torch random output as torch.manual_seed(7)"
         )
 
     # ── reproducibility ───────────────────────────────────────────────────────

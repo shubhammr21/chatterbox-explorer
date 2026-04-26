@@ -1,7 +1,7 @@
 """Audio infrastructure: frame alignment and format conversion."""
+
 import logging
 import tempfile
-from pathlib import Path
 
 import numpy as np
 
@@ -78,9 +78,9 @@ class TorchAudioPreprocessor(IAudioPreprocessor):
             # Write trimmed audio to a named temp file so torchaudio can read
             # it back via a file path (required by Chatterbox's audio_prompt_path
             # argument which does not accept raw tensors).
-            tmp = tempfile.NamedTemporaryFile(suffix=".wav", delete=False)
-            torchaudio.save(tmp.name, wav, sr)
-            tmp.close()
+            with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmp:
+                tmp_path = tmp.name
+            torchaudio.save(tmp_path, wav, sr)
 
             log.debug(
                 "preprocess_ref_audio: trimmed %d→%d samples (%d ms removed) at %d Hz",
@@ -89,16 +89,14 @@ class TorchAudioPreprocessor(IAudioPreprocessor):
                 round((original_len - target_len) / sr * 1000),
                 sr,
             )
-            return tmp.name
+            return tmp_path
 
         except Exception as exc:
             # Broad catch: any I/O error, unsupported codec, or torchaudio
             # issue falls through here.  We log at DEBUG (not WARNING) because
             # the failure is non-fatal — the model will attempt generation with
             # the original unprocessed path.
-            log.debug(
-                "preprocess_ref_audio: skipped (%s) — using original path", exc
-            )
+            log.debug("preprocess_ref_audio: skipped (%s) — using original path", exc)
             return path
 
 

@@ -3,22 +3,34 @@ src/domain/models.py
 =====================
 Pure domain dataclasses — zero framework dependencies.
 
-Allowed imports: stdlib (dataclasses, typing) + numpy for AudioResult.samples.
-Forbidden: torch, gradio, chatterbox, psutil, huggingface_hub — any of these
-appearing here is an architecture violation.
+Allowed imports: stdlib (dataclasses, typing) only at runtime.
+numpy and domain.types are type-annotation-only and live in TYPE_CHECKING.
+This keeps the domain layer zero-runtime-dependency — importing this module
+never pulls in any third-party package.
+Forbidden at runtime: torch, gradio, chatterbox, psutil, huggingface_hub,
+numpy — any of these appearing outside TYPE_CHECKING is an architecture violation.
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
-import numpy as np
+if TYPE_CHECKING:
+    # numpy and domain.types are only referenced in field type annotations.
+    # With PEP 563 (from __future__ import annotations), all annotations are
+    # stored as strings and never evaluated at runtime, so these imports are
+    # never needed outside of a type-checking pass.
+    # This makes the domain layer zero-runtime-dependency — importing models.py
+    # does not pull in numpy or any other third-party package.
+    import numpy as np
 
-from domain.types import DeviceType, LanguageCode, ModelKey, WatermarkVerdict
-
+    from domain.types import DeviceType, LanguageCode, ModelKey, WatermarkVerdict
 
 # ──────────────────────────────────────────────────────────────────────────────
 # TTS request value-objects
 # ──────────────────────────────────────────────────────────────────────────────
+
 
 @dataclass
 class TTSRequest:
@@ -27,6 +39,7 @@ class TTSRequest:
     Defaults mirror the '🎯 Default' preset and the Gradio slider defaults
     in app.py so callers that don't customise anything get sensible output.
     """
+
     text: str
     ref_audio_path: str | None = None
     exaggeration: float = 0.5
@@ -46,6 +59,7 @@ class TurboTTSRequest:
     Turbo does NOT support exaggeration or cfg_weight — those params are absent.
     norm_loudness normalises the reference audio to −27 LUFS before conditioning.
     """
+
     text: str
     ref_audio_path: str | None = None
     temperature: float = 0.8
@@ -66,6 +80,7 @@ class MultilingualTTSRequest:
     ships with a higher default rep_penalty (2.0) which empirically reduces
     artefacts on non-English languages.
     """
+
     text: str
     language: LanguageCode = "en"
     ref_audio_path: str | None = None
@@ -86,6 +101,7 @@ class VoiceConversionRequest:
     Both paths are mandatory — VC converts source audio to the target voice
     without any text prompt.
     """
+
     source_audio_path: str
     target_voice_path: str
 
@@ -94,6 +110,7 @@ class VoiceConversionRequest:
 # Output value-objects
 # ──────────────────────────────────────────────────────────────────────────────
 
+
 @dataclass
 class AudioResult:
     """Holds the raw audio output produced by any TTS or VC service.
@@ -101,6 +118,7 @@ class AudioResult:
     `samples` must be a 1-D float32 NumPy array of shape (N,).
     `sample_rate` is in Hz (typically 24 000 for Chatterbox models).
     """
+
     sample_rate: int
     samples: np.ndarray  # float32, shape (N,)
 
@@ -116,6 +134,7 @@ class AudioResult:
 # Model management value-objects
 # ──────────────────────────────────────────────────────────────────────────────
 
+
 @dataclass
 class ModelStatus:
     """Snapshot of a single model's identity and load state.
@@ -123,11 +142,12 @@ class ModelStatus:
     Populated by IModelManagerService.get_all_status() and consumed by the
     Gradio model-manager tab renderer.
     """
-    key: ModelKey      # "tts" | "turbo" | "multilingual" | "vc"
+
+    key: ModelKey  # "tts" | "turbo" | "multilingual" | "vc"
     display_name: str  # e.g. "Standard TTS"
-    class_name: str    # e.g. "ChatterboxTTS"
+    class_name: str  # e.g. "ChatterboxTTS"
     description: str
-    params: str        # human-readable, e.g. "500M" or "—"
+    params: str  # human-readable, e.g. "500M" or "—"
     size_gb: float
     in_memory: bool
     on_disk: bool
@@ -140,6 +160,7 @@ class MemoryStats:
     Device fields (device_driver_gb, device_max_gb) are None on CPU-only
     systems where no GPU / MPS memory tracking is available.
     """
+
     sys_total_gb: float
     sys_used_gb: float
     sys_avail_gb: float
@@ -154,6 +175,7 @@ class MemoryStats:
 # Watermark value-object
 # ──────────────────────────────────────────────────────────────────────────────
 
+
 @dataclass
 class WatermarkResult:
     """Result of a watermark-detection pass on a generated audio clip.
@@ -164,6 +186,7 @@ class WatermarkResult:
         "inconclusive"  — score is in the ambiguous range
         "unavailable"   — detection library not installed / failed to initialise
     """
+
     score: float
     verdict: WatermarkVerdict
     message: str
@@ -174,6 +197,7 @@ class WatermarkResult:
 # Application configuration
 # ──────────────────────────────────────────────────────────────────────────────
 
+
 @dataclass
 class AppConfig:
     """Immutable runtime configuration resolved once at bootstrap.
@@ -181,5 +205,6 @@ class AppConfig:
     Passed into services and adapters via dependency injection so that no
     module reads environment variables or detects hardware on its own.
     """
+
     device: DeviceType
     watermark_available: bool

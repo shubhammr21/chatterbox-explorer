@@ -8,6 +8,7 @@ Covers:
 - delegation to IWatermarkDetector
 - boundary values (0.0, 0.1, 0.5, 0.9, 1.0)
 """
+
 from __future__ import annotations
 
 import pytest
@@ -15,10 +16,10 @@ import pytest
 from domain.models import WatermarkResult
 from services.watermark import WatermarkService
 
-
 # ──────────────────────────────────────────────────────────────────────────────
 # Verdict logic
 # ──────────────────────────────────────────────────────────────────────────────
+
 
 class TestWatermarkServiceVerdicts:
     def test_detect_returns_detected_for_high_score(self, mock_watermark_detector):
@@ -67,9 +68,7 @@ class TestWatermarkServiceVerdicts:
         assert result.score == 0.5
         assert result.available is True
 
-    def test_detect_returns_inconclusive_just_above_lower_bound(
-        self, mock_watermark_detector
-    ):
+    def test_detect_returns_inconclusive_just_above_lower_bound(self, mock_watermark_detector):
         """score = 0.11 (just above 0.1) → 'inconclusive'."""
         mock_watermark_detector.detect.return_value = 0.11
         svc = WatermarkService(mock_watermark_detector)
@@ -77,9 +76,7 @@ class TestWatermarkServiceVerdicts:
 
         assert result.verdict == "inconclusive"
 
-    def test_detect_returns_inconclusive_just_below_upper_bound(
-        self, mock_watermark_detector
-    ):
+    def test_detect_returns_inconclusive_just_below_upper_bound(self, mock_watermark_detector):
         """score = 0.89 (just below 0.9) → 'inconclusive'."""
         mock_watermark_detector.detect.return_value = 0.89
         svc = WatermarkService(mock_watermark_detector)
@@ -87,9 +84,7 @@ class TestWatermarkServiceVerdicts:
 
         assert result.verdict == "inconclusive"
 
-    def test_detect_returns_unavailable_when_not_available(
-        self, mock_watermark_detector
-    ):
+    def test_detect_returns_unavailable_when_not_available(self, mock_watermark_detector):
         """When detector.is_available() is False, verdict must be 'unavailable'."""
         mock_watermark_detector.is_available.return_value = False
         svc = WatermarkService(mock_watermark_detector)
@@ -112,6 +107,7 @@ class TestWatermarkServiceVerdicts:
 # Return type and field correctness
 # ──────────────────────────────────────────────────────────────────────────────
 
+
 class TestWatermarkServiceReturnType:
     def test_detect_returns_watermark_result_instance(self, mock_watermark_detector):
         svc = WatermarkService(mock_watermark_detector)
@@ -132,9 +128,7 @@ class TestWatermarkServiceReturnType:
         result = svc.detect("/tmp/audio.wav")
         assert result.message
 
-    def test_detect_available_flag_true_when_detector_available(
-        self, mock_watermark_detector
-    ):
+    def test_detect_available_flag_true_when_detector_available(self, mock_watermark_detector):
         mock_watermark_detector.is_available.return_value = True
         mock_watermark_detector.detect.return_value = 0.95
         svc = WatermarkService(mock_watermark_detector)
@@ -145,6 +139,7 @@ class TestWatermarkServiceReturnType:
 # ──────────────────────────────────────────────────────────────────────────────
 # Delegation to detector
 # ──────────────────────────────────────────────────────────────────────────────
+
 
 class TestWatermarkServiceDelegation:
     def test_detect_delegates_to_detector(self, mock_watermark_detector):

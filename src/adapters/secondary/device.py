@@ -1,10 +1,17 @@
 """Device detection and seed management — infra concerns, not domain."""
+
 from __future__ import annotations
 
 import logging
 import random
+from typing import TYPE_CHECKING
 
-from domain.types import DeviceType
+if TYPE_CHECKING:
+    # DeviceType is only referenced in the return annotation of detect_device().
+    # With PEP 563 (from __future__ import annotations) all annotations are
+    # strings at runtime, so this import is never evaluated outside of a
+    # type-checking pass.
+    from domain.types import DeviceType
 
 log = logging.getLogger(__name__)
 
@@ -48,8 +55,8 @@ def set_seed(seed: int) -> None:
         ``torch.manual_seed()`` seeds the CPU generator which MPS kernels
         draw from, so reproducibility on Apple Silicon is still achieved.
     """
-    import torch
     import numpy as np
+    import torch
 
     seed = int(seed)
     if seed == 0:

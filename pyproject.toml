@@ -24,19 +24,36 @@ build-backend = "setuptools.build_meta"
 [tool.setuptools.packages.find]
 where = ["src"]
 
+# ──────────────────────────────────────────────────────────────────────────────
+# Dependency groups
+# ──────────────────────────────────────────────────────────────────────────────
+
 [dependency-groups]
 dev = [
     { include-group = "test" },
+    { include-group = "lint" },
+    { include-group = "typecheck" },
+    "pre-commit>=4.6.0",
 ]
 test = [
     "pytest>=9.0.3",
     "pytest-cov>=7.1.0",
 ]
+lint = [
+    "ruff>=0.15.12",
+]
+typecheck = [
+    "ty>=0.0.32",
+]
+
+# ──────────────────────────────────────────────────────────────────────────────
+# pytest
+# ──────────────────────────────────────────────────────────────────────────────
 
 [tool.pytest.ini_options]
-testpaths = ["tests"]
+testpaths  = ["tests"]
 pythonpath = ["src"]
-python_files = ["test_*.py"]
+python_files   = ["test_*.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
 addopts = [
@@ -50,13 +67,249 @@ markers = [
     "slow: alias for integration",
 ]
 
+# ──────────────────────────────────────────────────────────────────────────────
+# ruff — linter + formatter
+#
+# Role in this project
+# ────────────────────
+# Replaces: black (formatter), isort (import sorter), flake8 + plugins (linter).
+# Runs on every pre-commit hook (format check + lint fix).
+#
+# Rule selection rationale
+# ────────────────────────
+# E / W  — pycodestyle: basic style correctness (not line-length, handled by formatter)
+# F      — pyflakes: undefined names, unused imports — catches real bugs
+# B      — flake8-bugbear: likely bugs and design issues (e.g. mutable defaults)
+# I      — isort: consistent import ordering across the hexagonal layers
+# UP     — pyupgrade: enforce modern Python 3.11 idioms (e.g. X | Y over Union[X,Y])
+# SIM    — flake8-simplify: reduce unnecessary complexity in service logic
+# RUF    — ruff-native rules: catches Python-specific footguns
+# N      — pep8-naming: enforce naming conventions (important for port/service clarity)
+# TCH    — flake8-type-checking: move type-only imports into TYPE_CHECKING blocks,
+#           avoiding circular imports in the hexagonal layer graph
+#
+# Intentionally NOT selected
+# ──────────────────────────
+# ANN    — annotations: we ARE typed, but enforcing annotations on every helper
+#           and private method is too noisy at this stage
+# D      — pydocstyle: docstring format enforcement would churn the existing docs
+# S      — flake8-bandit: security linting; useful but generates noise on test mocks
+# T20    — flake8-print: print() is legitimately used in cli.py startup messages
+# ──────────────────────────────────────────────────────────────────────────────
+
+[tool.ruff]
+target-version = "py311"
+line-length    = 100
+src            = ["src", "tests"]
+
+[tool.ruff.lint]
+select = [
+    "E",    # pycodestyle errors
+    "W",    # pycodestyle warnings
+    "F",    # pyflakes
+    "B",    # flake8-bugbear
+    "I",    # isort
+    "UP",   # pyupgrade
+    "SIM",  # flake8-simplify
+    "RUF",  # ruff-native rules
+    "N",    # pep8-naming
+    "TCH",  # flake8-type-checking (TYPE_CHECKING blocks)
+]
+ignore = [
+    # Line-length is enforced by the formatter, not the linter.
+    "E501",
+    # f-string logging is fine in this codebase (we control Python version).
+    "G004",
+    # Allow `Any` — used intentionally for untyped third-party model objects.
+    "ANN401",
+    # Do not flag function calls in default args — triggers on gr.themes.Soft().
+    "B008",
+    # Allow `assert` in non-test code — used in service-layer guard assertions.
+    "S101",
+]
+fixable   = ["ALL"]
+unfixable = [
+    # Never auto-remove unused imports — might be intentional re-exports.
+    "F401",
+]
+
+[tool.ruff.lint.per-file-ignores]
+# Tests: relax naming, allow magic values, skip import-order pedantry.
+"tests/**" = ["N", "SIM", "RUF012", "TC001", "TC002", "TC003", "E402", "N818", "RUF002", "RUF003"]
+# Gradio handlers/UI: complex wiring; skip simplification rules.
+"src/adapters/primary/**" = ["SIM", "B"]
+# CLI entry point: print() is intentional startup output.
+"src/cli.py" = ["T20"]
+# __init__ files: star-imports are used for re-exports.
+"**/__init__.py" = ["F401", "F403"]
+# ── Domain / ports / services ─────────────────────────────────────────────────
+
+# SAMPLE_TEXTS contains real multilingual sentences in Greek, Cyrillic,
+# Turkish (dotless-ı), Arabic, Chinese (fullwidth commas) — every character
+# is correct native script, not an accidental lookalike substitution.
+"src/domain/languages.py" = ["RUF001"]
+
+# Math notation in docstring: −27 LUFS uses the proper minus sign, not a hyphen.
+"src/domain/models.py" = ["RUF002"]
+
+# Port ABCs define abstract method signatures; domain models/types imported at
+# the top level are needed by IDEs that analyse without evaluating TYPE_CHECKING.
+# Services both annotate with and instantiate domain models at runtime, making a
+# clean split across TYPE_CHECKING impossible without careful per-symbol analysis.
+# TC001/TC003 are aspirational optimisations here, not correctness issues.
+"src/ports/input.py"  = ["TC001", "TC003"]
+"src/ports/output.py" = ["TC001", "TC003"]
+"src/services/tts.py"               = ["TC001", "TC003"]
+"src/services/voice_conversion.py"  = ["TC001", "TC003"]
+"src/services/model_manager.py"     = ["TC001", "TC003"]
+"src/services/watermark.py"         = ["TC001", "TC003"]
+
+# Math notation in docstring: × (multiplication sign) is intentional.
+"src/adapters/secondary/audio.py" = ["RUF002"]
+
+# Math notation in docstrings and comments: × and − are intentional symbols.
+"src/adapters/secondary/memory.py" = ["RUF002", "RUF003"]
+
+# Tab names and markdown labels intentionally use emoji (ℹ️, 🗂️, etc.)
+# and UI tooltip strings use en-dash ranges (1.5–2.0) for readability.
+"src/adapters/primary/gradio/ui.py"       = ["RUF001"]
+"src/adapters/primary/gradio/handlers.py" = ["RUF001"]
+
+# presets.py at project root uses en-dash ranges in documentation tables;
+# these are intentional typographic choices, not accidental lookalikes.
+"presets.py" = ["RUF001", "RUF002", "RUF003"]
+
+# ── Tests ─────────────────────────────────────────────────────────────────────
+
+# Tests import domain models for fixture construction (both annotation and
+# instantiation); TC rules would require splitting every import unnecessarily.
+# E402: imports after pytest.importorskip() must follow the skip guard by design.
+# N818: sentinel exception classes in tests are intentionally terse.
+# RUF002: math symbols (×) are legitimate in test docstrings.
+"test_*.py" = ["TC001", "TC002", "TC003", "N818", "RUF002"]
+
+[tool.ruff.lint.isort]
+# Treat src/ as a known first-party namespace so ruff groups it correctly.
+known-first-party = [
+    "domain", "ports", "services", "adapters",
+    "bootstrap", "logging_config", "cli",
+]
+force-sort-within-sections = true
+
+[tool.ruff.format]
+quote-style          = "double"
+indent-style         = "space"
+skip-magic-trailing-comma = false
+line-ending          = "auto"
+# Format code blocks inside docstrings so examples stay consistent.
+docstring-code-format = true
+
+# ──────────────────────────────────────────────────────────────────────────────
+# ty — static type checker
+#
+# Role in this project
+# ────────────────────
+# Enforces the hexagonal architecture's type contracts:
+#   • Literal[ModelKey] values are used correctly in service calls
+#   • ABC @abstractmethod signatures match concrete implementations
+#   • ModelMetadata TypedDict fields are accessed safely
+#   • WatermarkVerdict literals flow through the watermark service correctly
+#
+# Scope: ONLY the pure layers — domain/, ports/, services/
+# ─────────────────────────────────────────────────────────
+# We deliberately exclude adapters/ from ty's default scope because:
+#   • torch, torchaudio, gradio lack complete type stubs
+#   • chatterbox-tts ships no py.typed marker
+#   • These would produce hundreds of "unknown-attribute" errors unrelated
+#     to our own code quality
+#
+# The domain / ports / services layers have ZERO third-party imports and
+# are therefore the most valuable targets for strict type checking.
+# ──────────────────────────────────────────────────────────────────────────────
+
+[tool.ty]
+# Only analyse the pure hexagonal layers where stubs are complete.
+
+
+[tool.ty.environment]
+python-version = "3.11"
+
+[tool.ty.rules]
+# Ensure TypedDict Required/NotRequired fields are accessed correctly.
+invalid-argument-type = "error"
+
+# Flag incorrect Literal values (e.g. ModelKey typos) as errors.
+invalid-type-arguments = "error"
+
+# ──────────────────────────────────────────────────────────────────────────────
+# coverage
+#
+# Role in this project
+# ────────────────────
+# Measures what fraction of the domain + service logic is exercised by the
+# 283 unit tests.  Branch coverage is enabled to catch untested if/else paths
+# in the service layer (e.g. streaming vs. non-streaming, seed=0 no-op).
+#
+# Source scope
+# ─────────────
+# We measure everything in src/ EXCEPT:
+#   • adapters/primary/ — Gradio UI; integration-tested, not unit-tested
+#   • cli.py            — entry point; covered by integration test
+#   • bootstrap.py      — DI wiring; covered by integration test
+#   • __init__ / __main__ — empty module stubs
+#
+# Threshold
+# ──────────
+# fail_under = 80  — achievable with 283 tests covering domain + services.
+# The uncovered 20% is primarily adapter scaffolding excluded from measurement.
+# ──────────────────────────────────────────────────────────────────────────────
+
 [tool.coverage.run]
-source = ["src/chatterbox_explorer"]
+branch = true
+source = ["src"]
 omit = [
-    "tests/*",
-    "src/chatterbox_explorer/adapters/primary/*",
+    # Primary adapters: Gradio UI wiring is tested via integration tests only.
+    "src/adapters/primary/*",
+    # Application entry point and DI root: tested at integration level.
+    "src/cli.py",
+    "src/bootstrap.py",
+    # Logging / warning setup: only runs at process startup.
+    "src/logging_config.py",
+    # Port input ABCs: all method bodies are `...` (abstract); nothing to execute.
+    "src/ports/input.py",
+    # Secondary infrastructure adapters: require real HF model downloads, psutil,
+    # or the perth library — covered by integration tests, not unit tests.
+    "src/adapters/secondary/model_loader.py",
+    "src/adapters/secondary/memory.py",
+    "src/adapters/secondary/watermark.py",
+    # Empty stubs — nothing to measure.
+    "src/__init__.py",
+    "src/__main__.py",
 ]
 
 [tool.coverage.report]
-show_missing = true
-skip_covered = false
+show_missing  = true
+skip_covered  = false
+skip_empty    = true
+# Threshold applies to the measured scope (domain + ports/output + services +
+# audio + device adapters).  Infrastructure adapters and wiring code that
+# require integration tests are excluded from measurement above.
+fail_under    = 90
+precision     = 1
+# Exclude patterns that are unreachable by design.
+exclude_also = [
+    # Abstract methods have no implementation to cover.
+    "@(abc\\.)?abstractmethod",
+    # TYPE_CHECKING blocks are never executed at runtime.
+    "if TYPE_CHECKING:",
+    # Explicit not-implemented stubs.
+    "raise NotImplementedError",
+    # Ellipsis-body abstract method stubs.
+    "\\.\\.\\.",
+    # Defensive pragma.
+    "# pragma: no cover",
+]
+
+[tool.coverage.html]
+directory = ".coverage_html"
+title     = "Chatterbox Explorer — Coverage Report"

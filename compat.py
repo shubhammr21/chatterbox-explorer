@@ -28,6 +28,7 @@ Call both apply_*() functions at app startup, before any lazy chatterbox import:
 
 from __future__ import annotations
 
+import contextlib
 import logging
 
 log = logging.getLogger("chatterbox-demo.compat")
@@ -36,6 +37,7 @@ log = logging.getLogger("chatterbox-demo.compat")
 # ─────────────────────────────────────────────────────────────────────────────
 # Migration 1: torch.backends.cuda.sdp_kernel → torch.nn.attention.sdpa_kernel
 # ─────────────────────────────────────────────────────────────────────────────
+
 
 def apply_torch_sdp_kernel_migration() -> None:
     """
@@ -81,9 +83,7 @@ def apply_torch_sdp_kernel_migration() -> None:
 
     # Guard: old API must exist
     if not hasattr(torch.backends.cuda, "sdp_kernel"):
-        log.debug(
-            "torch.backends.cuda.sdp_kernel not present — nothing to migrate"
-        )
+        log.debug("torch.backends.cuda.sdp_kernel not present — nothing to migrate")
         return
 
     # Idempotency: already patched
@@ -92,6 +92,7 @@ def apply_torch_sdp_kernel_migration() -> None:
         return
 
     from contextlib import contextmanager
+
     from torch.nn.attention import SDPBackend, sdpa_kernel
 
     # Detect MPS-only environment once at patch time (not per-call) for speed
@@ -131,11 +132,9 @@ def apply_torch_sdp_kernel_migration() -> None:
             if enable_mem_efficient:
                 backends.append(SDPBackend.EFFICIENT_ATTENTION)
             if enable_cudnn:
-                try:
+                # CUDNN_ATTENTION may not exist on all PyTorch builds
+                with contextlib.suppress(AttributeError):
                     backends.append(SDPBackend.CUDNN_ATTENTION)
-                except AttributeError:
-                    # CUDNN_ATTENTION may not exist on all PyTorch builds
-                    pass
             if enable_math:
                 backends.append(SDPBackend.MATH)
             if not backends:
@@ -163,6 +162,7 @@ def apply_torch_sdp_kernel_migration() -> None:
 # ─────────────────────────────────────────────────────────────────────────────
 # Migration 2: diffusers.LoRACompatibleLinear → torch.nn.Linear
 # ─────────────────────────────────────────────────────────────────────────────
+
 
 def apply_diffusers_lora_migration() -> None:
     """
@@ -211,8 +211,8 @@ def apply_diffusers_lora_migration() -> None:
     Pin ``diffusers < 1.0.0`` in pyproject.toml as an additional safeguard.
     """
     try:
-        import torch.nn as nn
         import diffusers.models.lora as _diffusers_lora
+        import torch.nn as nn
     except ImportError:
         log.debug("diffusers not available — skipping LoRACompatibleLinear migration")
         return

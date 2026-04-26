@@ -12,9 +12,9 @@ Frame-alignment arithmetic (24 kHz reference):
     970  samples → 970 // 960 = 1 → target_len = 960 ≠ 970 → trim + new file
     1920 samples → 1920 // 960 = 2 → target_len = 1920 == 1920 → already aligned
 """
+
 from __future__ import annotations
 
-import tempfile
 from pathlib import Path
 
 import numpy as np
@@ -30,10 +30,10 @@ torchaudio = pytest.importorskip("torchaudio", reason="torchaudio required for a
 from adapters.secondary.audio import TorchAudioPreprocessor, to_gradio_audio
 from domain.models import AudioResult
 
-
 # ──────────────────────────────────────────────────────────────────────────────
 # Helpers
 # ──────────────────────────────────────────────────────────────────────────────
+
 
 def _make_wav(tmp_path: Path, n_samples: int, sr: int = 24_000) -> str:
     """Write a mono silent WAV file with *n_samples* at *sr* Hz.
@@ -56,6 +56,7 @@ def _load_sample_count(path: str) -> int:
 # TorchAudioPreprocessor
 # ──────────────────────────────────────────────────────────────────────────────
 
+
 class TestTorchAudioPreprocessor:
     """Tests for the IAudioPreprocessor adapter."""
 
@@ -75,9 +76,7 @@ class TestTorchAudioPreprocessor:
 
     # ── Already aligned ───────────────────────────────────────────────────────
 
-    def test_preprocess_already_aligned_returns_same_path(
-        self, preprocessor, tmp_path
-    ):
+    def test_preprocess_already_aligned_returns_same_path(self, preprocessor, tmp_path):
         """A WAV of exactly 960 samples (one 40 ms frame at 24 kHz) is a
         short-circuit case: wav.shape[-1] <= frame_samples, so the original
         path is returned without any I/O.
@@ -88,9 +87,7 @@ class TestTorchAudioPreprocessor:
             "Already-aligned (or single-frame) audio should return the original path"
         )
 
-    def test_preprocess_two_complete_frames_returns_same_path(
-        self, preprocessor, tmp_path
-    ):
+    def test_preprocess_two_complete_frames_returns_same_path(self, preprocessor, tmp_path):
         """1920 samples = exactly 2 × 40 ms frames — target_len == wav.shape[-1],
         so the fast path triggers and no temp file is written.
         """
@@ -100,22 +97,16 @@ class TestTorchAudioPreprocessor:
 
     # ── Unaligned → new path ──────────────────────────────────────────────────
 
-    def test_preprocess_unaligned_returns_new_path(
-        self, preprocessor, tmp_path
-    ):
+    def test_preprocess_unaligned_returns_new_path(self, preprocessor, tmp_path):
         """970 samples at 24 kHz (960 + 10 remainder) must produce a new
         temp file, so the returned path differs from the input path.
         """
         path = _make_wav(tmp_path, n_samples=970, sr=24_000)
         result = preprocessor.preprocess(path)
         assert result is not None
-        assert result != path, (
-            "Unaligned audio should be written to a new temp file"
-        )
+        assert result != path, "Unaligned audio should be written to a new temp file"
 
-    def test_preprocess_unaligned_output_aligned(
-        self, preprocessor, tmp_path
-    ):
+    def test_preprocess_unaligned_output_aligned(self, preprocessor, tmp_path):
         """The trimmed output must be a whole multiple of 40 ms (960 samples)
         when loaded back from disk.
         """
@@ -132,9 +123,7 @@ class TestTorchAudioPreprocessor:
             f"{frame_samples} (40 ms at 24 kHz)"
         )
 
-    def test_preprocess_unaligned_output_shorter_than_input(
-        self, preprocessor, tmp_path
-    ):
+    def test_preprocess_unaligned_output_shorter_than_input(self, preprocessor, tmp_path):
         """Trimming must reduce the sample count, never increase it."""
         n_input = 970
         path = _make_wav(tmp_path, n_samples=n_input, sr=24_000)
@@ -144,9 +133,7 @@ class TestTorchAudioPreprocessor:
         out_samples = _load_sample_count(result)
         assert out_samples < n_input
 
-    def test_preprocess_unaligned_output_is_valid_wav(
-        self, preprocessor, tmp_path
-    ):
+    def test_preprocess_unaligned_output_is_valid_wav(self, preprocessor, tmp_path):
         """The new temp file must be a loadable WAV (not a partial write)."""
         path = _make_wav(tmp_path, n_samples=2500, sr=24_000)
         result = preprocessor.preprocess(path)
@@ -160,8 +147,8 @@ class TestTorchAudioPreprocessor:
     def test_preprocess_large_unaligned_audio(self, preprocessor, tmp_path):
         """5 seconds + 10 spare samples → trim to nearest 40 ms boundary."""
         sr = 24_000
-        five_seconds = sr * 5          # 120_000 samples
-        n_input = five_seconds + 10    # 120_010
+        five_seconds = sr * 5  # 120_000 samples
+        n_input = five_seconds + 10  # 120_010
         path = _make_wav(tmp_path, n_samples=n_input, sr=sr)
         result = preprocessor.preprocess(path)
 
@@ -197,6 +184,7 @@ class TestTorchAudioPreprocessor:
 # ──────────────────────────────────────────────────────────────────────────────
 # to_gradio_audio
 # ──────────────────────────────────────────────────────────────────────────────
+
 
 class TestToGradioAudio:
     """Tests for the float32 → int16 conversion helper."""

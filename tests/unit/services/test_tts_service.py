@@ -8,10 +8,12 @@ All model I/O is faked via the fixtures in tests/conftest.py — no real
 Chatterbox weights are loaded.  torch IS required at test-time (via the
 mock_wav_tensor fixture) but is NOT imported by the service modules under test.
 """
+
 from __future__ import annotations
 
-import pytest
 from unittest.mock import MagicMock
+
+import pytest
 
 from domain.models import (
     AudioResult,
@@ -26,10 +28,10 @@ from services.tts import (
     split_sentences,
 )
 
-
 # ──────────────────────────────────────────────────────────────────────────────
 # split_sentences — pure function, no fixtures needed
 # ──────────────────────────────────────────────────────────────────────────────
+
 
 class TestSplitSentences:
     def test_split_sentences_basic(self):
@@ -67,6 +69,7 @@ class TestSplitSentences:
 # TTSService
 # ──────────────────────────────────────────────────────────────────────────────
 
+
 class TestTTSService:
     # ── generate (non-streaming) ──────────────────────────────────────────────
 
@@ -82,9 +85,7 @@ class TestTTSService:
         with pytest.raises(ValueError):
             svc.generate(req)
 
-    def test_generate_calls_preprocessor_with_ref_path(
-        self, mock_model_repo, mock_preprocessor
-    ):
+    def test_generate_calls_preprocessor_with_ref_path(self, mock_model_repo, mock_preprocessor):
         svc = TTSService(mock_model_repo, mock_preprocessor)
         req = TTSRequest(text="Hello.", ref_audio_path="/tmp/ref.wav")
         svc.generate(req)
@@ -154,9 +155,7 @@ class TestTTSService:
         svc.generate(req)
         seed_mock.assert_called_once_with(42)
 
-    def test_generate_uses_noop_seed_setter_by_default(
-        self, mock_model_repo, mock_preprocessor
-    ):
+    def test_generate_uses_noop_seed_setter_by_default(self, mock_model_repo, mock_preprocessor):
         """No exception when seed_setter is omitted."""
         svc = TTSService(mock_model_repo, mock_preprocessor)
         req = TTSRequest(text="Hello.", seed=7)
@@ -165,44 +164,34 @@ class TestTTSService:
 
     # ── generate_stream ───────────────────────────────────────────────────────
 
-    def test_generate_stream_raises_on_empty_text(
-        self, mock_model_repo, mock_preprocessor
-    ):
+    def test_generate_stream_raises_on_empty_text(self, mock_model_repo, mock_preprocessor):
         svc = TTSService(mock_model_repo, mock_preprocessor)
         req = TTSRequest(text="")
         with pytest.raises(ValueError, match="empty"):
             # consume the generator to trigger the error
             list(svc.generate_stream(req))
 
-    def test_generate_stream_yields_for_each_sentence(
-        self, mock_model_repo, mock_preprocessor
-    ):
+    def test_generate_stream_yields_for_each_sentence(self, mock_model_repo, mock_preprocessor):
         svc = TTSService(mock_model_repo, mock_preprocessor)
         req = TTSRequest(text="Hello. World.")
         results = list(svc.generate_stream(req))
         assert len(results) == 2
 
-    def test_generate_stream_yields_cumulative_audio(
-        self, mock_model_repo, mock_preprocessor
-    ):
+    def test_generate_stream_yields_cumulative_audio(self, mock_model_repo, mock_preprocessor):
         """Second yield must contain more samples than the first."""
         svc = TTSService(mock_model_repo, mock_preprocessor)
         req = TTSRequest(text="Hello. World.")
         results = list(svc.generate_stream(req))
         assert len(results[1].samples) > len(results[0].samples)
 
-    def test_generate_stream_all_yields_are_audio_results(
-        self, mock_model_repo, mock_preprocessor
-    ):
+    def test_generate_stream_all_yields_are_audio_results(self, mock_model_repo, mock_preprocessor):
         svc = TTSService(mock_model_repo, mock_preprocessor)
         req = TTSRequest(text="One. Two. Three.")
         results = list(svc.generate_stream(req))
         assert all(isinstance(r, AudioResult) for r in results)
         assert all(r.sample_rate == 24000 for r in results)
 
-    def test_generate_stream_single_sentence_yields_once(
-        self, mock_model_repo, mock_preprocessor
-    ):
+    def test_generate_stream_single_sentence_yields_once(self, mock_model_repo, mock_preprocessor):
         svc = TTSService(mock_model_repo, mock_preprocessor)
         req = TTSRequest(text="No punctuation here")
         results = list(svc.generate_stream(req))
@@ -213,10 +202,9 @@ class TestTTSService:
 # TurboTTSService
 # ──────────────────────────────────────────────────────────────────────────────
 
+
 class TestTurboTTSService:
-    def test_turbo_generate_raises_on_empty_text(
-        self, mock_model_repo, mock_preprocessor
-    ):
+    def test_turbo_generate_raises_on_empty_text(self, mock_model_repo, mock_preprocessor):
         svc = TurboTTSService(mock_model_repo, mock_preprocessor)
         req = TurboTTSRequest(text="")
         with pytest.raises(ValueError):
@@ -245,9 +233,7 @@ class TestTurboTTSService:
         assert call_kwargs["repetition_penalty"] == 1.1
         assert call_kwargs["min_p"] == 0.01
 
-    def test_turbo_generate_uses_turbo_model_key(
-        self, mock_model_repo, mock_preprocessor
-    ):
+    def test_turbo_generate_uses_turbo_model_key(self, mock_model_repo, mock_preprocessor):
         svc = TurboTTSService(mock_model_repo, mock_preprocessor)
         req = TurboTTSRequest(text="Hello.")
         svc.generate(req)
@@ -263,9 +249,7 @@ class TestTurboTTSService:
         with pytest.raises(ValueError, match="5 seconds"):
             svc.generate(req)
 
-    def test_turbo_generate_returns_audio_result(
-        self, mock_model_repo, mock_preprocessor
-    ):
+    def test_turbo_generate_returns_audio_result(self, mock_model_repo, mock_preprocessor):
         svc = TurboTTSService(mock_model_repo, mock_preprocessor)
         req = TurboTTSRequest(text="Hello.")
         result = svc.generate(req)
@@ -279,9 +263,7 @@ class TestTurboTTSService:
         svc.generate(req)
         seed_mock.assert_called_once_with(99)
 
-    def test_turbo_stream_raises_on_empty_text(
-        self, mock_model_repo, mock_preprocessor
-    ):
+    def test_turbo_stream_raises_on_empty_text(self, mock_model_repo, mock_preprocessor):
         svc = TurboTTSService(mock_model_repo, mock_preprocessor)
         req = TurboTTSRequest(text="")
         with pytest.raises(ValueError):
@@ -301,10 +283,9 @@ class TestTurboTTSService:
 # MultilingualTTSService
 # ──────────────────────────────────────────────────────────────────────────────
 
+
 class TestMultilingualTTSService:
-    def test_multilingual_generate_raises_on_empty_text(
-        self, mock_model_repo, mock_preprocessor
-    ):
+    def test_multilingual_generate_raises_on_empty_text(self, mock_model_repo, mock_preprocessor):
         svc = MultilingualTTSService(mock_model_repo, mock_preprocessor)
         req = MultilingualTTSRequest(text="")
         with pytest.raises(ValueError):
@@ -364,9 +345,7 @@ class TestMultilingualTTSService:
         assert call_kwargs["min_p"] == 0.05
         assert call_kwargs["top_p"] == 0.98
 
-    def test_multilingual_generate_returns_audio_result(
-        self, mock_model_repo, mock_preprocessor
-    ):
+    def test_multilingual_generate_returns_audio_result(self, mock_model_repo, mock_preprocessor):
         svc = MultilingualTTSService(mock_model_repo, mock_preprocessor)
         req = MultilingualTTSRequest(text="Hello.")
         result = svc.generate(req)
@@ -392,13 +371,9 @@ class TestMultilingualTTSService:
         with pytest.raises(ValueError):
             list(svc.generate_stream(req))
 
-    def test_multilingual_generate_calls_seed_setter(
-        self, mock_model_repo, mock_preprocessor
-    ):
+    def test_multilingual_generate_calls_seed_setter(self, mock_model_repo, mock_preprocessor):
         seed_mock = MagicMock()
-        svc = MultilingualTTSService(
-            mock_model_repo, mock_preprocessor, seed_setter=seed_mock
-        )
+        svc = MultilingualTTSService(mock_model_repo, mock_preprocessor, seed_setter=seed_mock)
         req = MultilingualTTSRequest(text="Hello.", seed=123)
         svc.generate(req)
         seed_mock.assert_called_once_with(123)

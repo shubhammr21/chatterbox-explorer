@@ -128,7 +128,7 @@ def warn(msg: str) -> None:
 
 step(1, "Checking resemble-perth watermarker")
 
-import perth as _perth_mod  # noqa: E402
+import perth as _perth_mod
 
 WATERMARK_AVAILABLE: bool = _perth_mod.PerthImplicitWatermarker is not None
 

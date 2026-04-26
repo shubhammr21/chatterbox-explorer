@@ -105,13 +105,16 @@ def main(argv: list[str] | None = None) -> None:
     # torch.backends.cuda.sdp_kernel → torch.nn.attention.sdpa_kernel
     # diffusers.LoRACompatibleLinear  → nn.Linear
     # Both must fire before the first lazy chatterbox model import.
-    try:
-        import compat
+    # compat is part of the installed package (src/compat.py) — direct import,
+    # no try/except: if this fails, the migrations genuinely cannot run and the
+    # caller must know about it rather than silently proceeding without them.
+    from compat import (
+        apply_diffusers_lora_migration,
+        apply_torch_sdp_kernel_migration,
+    )
 
-        compat.apply_diffusers_lora_migration()
-        compat.apply_torch_sdp_kernel_migration()
-    except ImportError:
-        log.debug("compat.py not found on sys.path — skipping migration patches")
+    apply_diffusers_lora_migration()
+    apply_torch_sdp_kernel_migration()
 
     # ── Step 2c: PerTh no-op patch ────────────────────────────────────────────
     # resemble-perth open-source edition ships with PerthImplicitWatermarker=None.

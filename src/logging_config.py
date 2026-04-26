@@ -4,7 +4,8 @@ src/logging_config.py
 Logging and warning configuration for the Chatterbox TTS Explorer.
 
 IMPORTANT: This module MUST have zero side-effects at import time.
-All configuration logic is gated behind the configure() function so that:
+All configuration logic is gated behind the configure() / configure_json()
+functions so that:
   - Unit tests can import project modules without triggering log setup.
   - cli.py controls exactly when (and therefore after which other imports)
     the configuration fires.
@@ -12,27 +13,27 @@ All configuration logic is gated behind the configure() function so that:
 Call configure() exactly once, as the very first thing in cli.main(),
 before any library with an eager logger (huggingface_hub, transformers,
 diffusers) is imported.
+
+For REST / production mode, call configure_json() from cli._launch_rest()
+AFTER configure() has already run — it replaces the root handler with a
+structured JSON emitter while reusing the same noisy-logger suppression.
 """
 
 from __future__ import annotations
 
+# ──────────────────────────────────────────────────────────────────────────────
+# Shared helper — called by both configure() and configure_json()
+# ──────────────────────────────────────────────────────────────────────────────
 
-def configure() -> None:
-    """Configure logging and warning filters for the entire process.
 
-    Ordering within this function is load-bearing — see inline comments.
+def _suppress_noisy_loggers() -> None:
+    """Silence third-party loggers and warning spam that pollute the output.
+
+    Safe to call more than once — every operation here is idempotent.
+    All library imports are deferred to avoid side-effects at module load time.
     """
     import logging
-    import os
     import warnings
-
-    # ── Root logger ──────────────────────────────────────────────────────────
-    # Set up a clean, timestamped format for our own log messages.
-    logging.basicConfig(
-        level=logging.INFO,
-        format="%(asctime)s [%(levelname)s] %(name)s — %(message)s",
-        datefmt="%H:%M:%S",
-    )
 
     # ── huggingface_hub verbosity ─────────────────────────────────────────────
     # huggingface_hub sets its root logger to level=WARNING during its own
@@ -62,7 +63,7 @@ def configure() -> None:
     # ── HuggingFace unauthenticated-request warnings ──────────────────────────
     # HF Hub emits this via warnings.warn() on every model file HEAD request
     # when no HF_TOKEN is set.  We suppress the per-request spam and replace it
-    # with a single clean advisory from our own logger (see below).
+    # with a single clean advisory from our own logger (see configure() below).
     warnings.filterwarnings(
         "ignore",
         message=r".*unauthenticated requests.*HF Hub.*",
@@ -85,6 +86,33 @@ def configure() -> None:
     except ImportError:
         pass
 
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Public configuration functions
+# ──────────────────────────────────────────────────────────────────────────────
+
+
+def configure() -> None:
+    """Configure logging and warning filters for the entire process.
+
+    Use this for Gradio UI mode (plain-text, human-readable log lines).
+
+    Ordering within this function is load-bearing — see inline comments.
+    """
+    import logging
+    import os
+
+    # ── Root logger ──────────────────────────────────────────────────────────
+    # Set up a clean, timestamped format for our own log messages.
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s [%(levelname)s] %(name)s — %(message)s",
+        datefmt="%H:%M:%S",
+    )
+
+    # ── Suppress noisy third-party loggers ───────────────────────────────────
+    _suppress_noisy_loggers()
+
     # ── HuggingFace token advisory ────────────────────────────────────────────
     # Models are public so HF_TOKEN is optional, but unauthenticated access is
     # subject to stricter rate limits.  We emit exactly one advisory instead of
@@ -98,3 +126,49 @@ def configure() -> None:
         )
     else:
         log.info("HF_TOKEN detected ✓ — authenticated HuggingFace access enabled.")
+
+
+def configure_json() -> None:
+    """Configure structured JSON logging for the REST/production mode.
+
+    Uses python-json-logger (>=3.2.0) to emit every log record as a
+    single-line JSON object, making it ingestible by log aggregators
+    (Datadog, CloudWatch Logs Insights, Grafana Loki) without parsing.
+
+    Call this INSTEAD of configure() when launching the FastAPI REST server
+    (i.e. from cli._launch_rest()).
+
+    Differences from configure():
+      - Root handler emits JSON instead of plain text.
+      - uvicorn.access logger is suppressed at CRITICAL level — the
+        RequestLoggingMiddleware is the sole source of per-request logs.
+      - The same noisy third-party loggers are suppressed as in configure().
+    """
+    import logging
+
+    try:
+        from pythonjsonlogger.json import JsonFormatter
+    except ModuleNotFoundError as exc:
+        raise ModuleNotFoundError(
+            "python-json-logger is required for JSON logging. Install it with: uv sync --extra rest"
+        ) from exc
+
+    handler = logging.StreamHandler()
+    handler.setFormatter(
+        JsonFormatter(
+            fmt="%(asctime)s %(levelname)s %(name)s %(message)s",
+            datefmt="%Y-%m-%dT%H:%M:%S",
+        )
+    )
+
+    root = logging.getLogger()
+    root.handlers.clear()
+    root.addHandler(handler)
+    root.setLevel(logging.INFO)
+
+    # Suppress uvicorn's native access logger — RequestLoggingMiddleware
+    # is the sole access-log source in REST mode.
+    logging.getLogger("uvicorn.access").setLevel(logging.CRITICAL)
+
+    # Same noisy library suppression as configure().
+    _suppress_noisy_loggers()

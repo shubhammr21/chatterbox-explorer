@@ -8,8 +8,26 @@ dependencies = [
     "chatterbox-tts",
     "dependency-injector>=4.41.0",
     "diffusers>=0.29.0,<1.0.0",
-    "gradio>=4.40.0",
     "peft>=0.6.0",
+]
+
+[project.optional-dependencies]
+# Install the Gradio web UI adapter:
+#   uv sync --extra ui
+ui = [
+    "gradio>=4.40.0",
+]
+# Install the FastAPI REST adapter:
+#   uv sync --extra rest
+rest = [
+    "fastapi>=0.100.0",
+    "python-json-logger>=3.2.0",
+    "uvicorn[standard]>=0.20.0",
+]
+# Install everything (recommended for development):
+#   uv sync --extra all
+all = [
+    "chatterbox-explorer[ui,rest]",
 ]
 
 [project.scripts]
@@ -39,6 +57,10 @@ dev = [
 test = [
     "pytest>=9.0.3",
     "pytest-cov>=7.1.0",
+    # httpx is NOT a transitive dep of plain fastapi — only of fastapi[standard].
+    # Required by fastapi.testclient.TestClient and for REST adapter tests.
+    "httpx>=0.27.0",
+    "pytest-benchmark>=5.1.0",
 ]
 lint = [
     "ruff>=0.15.12",

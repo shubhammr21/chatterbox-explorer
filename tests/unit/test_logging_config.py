@@ -1,7 +1,8 @@
 """
 tests/unit/test_logging_config.py
 ===================================
-TDD unit tests for logging_config.configure().
+TDD unit tests for logging_config.configure() and logging_config.configure_json().
+</thinking>
 
 configure() is a zero-import-side-effect function: all its work happens
 *inside* the function body, so we can call it directly in tests without
@@ -254,3 +255,102 @@ class TestImportErrorFallbacks:
         # Block the transformers import by poisoning sys.modules.
         with patch.dict(sys.modules, {"transformers": None}):
             configure()  # must complete without raising
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# configure_json() — structured JSON logging for the REST mode
+# ──────────────────────────────────────────────────────────────────────────────
+
+
+class TestConfigureJson:
+    """Tests for logging_config.configure_json().
+
+    configure_json() switches the root logger to a JSON formatter provided by
+    python-json-logger, suppresses uvicorn.access at CRITICAL, and applies the
+    same noisy-library suppression as configure().
+
+    python-json-logger is installed as part of the 'rest' optional extra and
+    must be present in the dev environment (uv sync --all-extras).
+    """
+
+    def test_configure_json_does_not_raise(self) -> None:
+        """configure_json() must complete without raising when the dep is present."""
+        from logging_config import configure_json
+
+        configure_json()  # must not raise
+
+    def test_configure_json_sets_root_level_to_info(self) -> None:
+        from logging_config import configure_json
+
+        configure_json()
+        assert logging.getLogger().level == logging.INFO
+
+    def test_configure_json_root_has_at_least_one_handler(self) -> None:
+        from logging_config import configure_json
+
+        configure_json()
+        assert len(logging.getLogger().handlers) >= 1
+
+    def test_configure_json_handler_has_json_formatter(self) -> None:
+        """Root handler must use a JSON-capable formatter after configure_json()."""
+        from pythonjsonlogger.json import JsonFormatter
+
+        from logging_config import configure_json
+
+        configure_json()
+        root_handlers = logging.getLogger().handlers
+        assert any(isinstance(h.formatter, JsonFormatter) for h in root_handlers), (
+            "Expected at least one root handler with a JsonFormatter"
+        )
+
+    def test_configure_json_suppresses_uvicorn_access(self) -> None:
+        """uvicorn.access must be silenced so middleware is the sole access-log source."""
+        from logging_config import configure_json
+
+        configure_json()
+        assert logging.getLogger("uvicorn.access").level == logging.CRITICAL
+
+    def test_configure_json_suppresses_transformers(self) -> None:
+        from logging_config import configure_json
+
+        configure_json()
+        assert logging.getLogger("transformers").level == logging.ERROR
+
+    def test_configure_json_suppresses_huggingface_hub(self) -> None:
+        from logging_config import configure_json
+
+        configure_json()
+        assert logging.getLogger("huggingface_hub").level == logging.ERROR
+
+    def test_configure_json_suppresses_diffusers(self) -> None:
+        from logging_config import configure_json
+
+        configure_json()
+        assert logging.getLogger("diffusers").level == logging.ERROR
+
+    def test_configure_json_idempotent(self) -> None:
+        """Calling configure_json() twice must not raise."""
+        from logging_config import configure_json
+
+        configure_json()
+        configure_json()
+
+    def test_configure_json_raises_when_pythonjsonlogger_missing(self) -> None:
+        """When python-json-logger is absent, configure_json() must raise ModuleNotFoundError
+        with a helpful install instruction."""
+        import sys
+        from unittest.mock import patch
+
+        from logging_config import configure_json
+
+        with (
+            patch.dict(
+                sys.modules,
+                {
+                    "pythonjsonlogger": None,
+                    "pythonjsonlogger.json": None,
+                },
+            ),
+            pytest.raises(ModuleNotFoundError, match="python-json-logger"),
+        ):
+            configure_json()

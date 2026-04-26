@@ -6,6 +6,7 @@ readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
     "chatterbox-tts",
+    "dependency-injector>=4.41.0",
     "diffusers>=0.29.0,<1.0.0",
     "gradio>=4.40.0",
     "peft>=0.6.0",
@@ -141,7 +142,7 @@ unfixable = [
 "test_*.py" = ["N818"]
 # Gradio primary adapters: complex multi-argument event wiring makes
 # individual-statement simplification rules noisy and unhelpful.
-"src/adapters/primary/**" = ["SIM", "B"]
+"src/adapters/inbound/**" = ["SIM", "B"]
 # CLI entry point: print() is used intentionally for startup progress messages.
 "src/cli.py" = ["T20"]
 # __init__ files: star-imports / re-exports are the intended pattern.
@@ -157,6 +158,7 @@ unfixable = [
 known-first-party = [
     "domain", "ports", "services", "adapters",
     "bootstrap", "logging_config", "cli",
+    "infrastructure",
 ]
 force-sort-within-sections = true
 
@@ -232,8 +234,8 @@ invalid-type-arguments = "error"
 branch = true
 source = ["src"]
 omit = [
-    # Primary adapters: Gradio UI requires a running server; tested at integration level.
-    "src/adapters/primary/*",
+    # Inbound adapters: Gradio UI requires a running server; tested at integration level.
+    "src/adapters/inbound/*",
     # Entry point and DI bootstrap: require the full application stack to be wired;
     # tested at integration level (test_model_load.py).
     "src/cli.py",

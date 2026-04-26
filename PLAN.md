@@ -1,387 +1,524 @@
-# PLAN — Chatterbox TTS Explorer  (v3 — Hexagonal Architecture + TDD)
+# PLAN — Structural Refactoring: Inbound/Outbound + Infrastructure Layer + Dependency Injector
 
-## Goal
-Refactor the current monolithic `app.py` into the Hexagonal (Ports & Adapters)
-architecture so that future delivery adapters — REST API, CLI, gRPC — can be
-added without touching domain or business logic.  Every change must be verified
-by a test written **before** the implementation (TDD).
-
----
-
-## Why Hexagonal?
-
-```
-┌─────────────────────────────────────────────────────────┐
-│              Driving Adapters  (Primary)                 │
-│         Gradio UI  │  REST API  │  CLI  │  gRPC          │
-└──────────────────────────┬──────────────────────────────┘
-                           │  calls
-             ┌─────────────▼─────────────┐
-             │       Input Ports         │  ← ABCs the outside world calls
-             └─────────────┬─────────────┘
-                           │
-             ┌─────────────▼─────────────┐
-             │      Domain Services      │  ← pure orchestration logic
-             │  TTSService               │
-             │  VoiceConversionService   │
-             │  ModelManagerService      │
-             │  WatermarkService         │
-             └─────────────┬─────────────┘
-                           │  depends on
-             ┌─────────────▼─────────────┐
-             │       Output Ports        │  ← ABCs the domain needs from infra
-             └─────────────┬─────────────┘
-                           │  implemented by
-┌──────────────────────────▼──────────────────────────────┐
-│              Driven Adapters  (Secondary)                │
-│  ChatterboxModelLoader  │  TorchAudioPreprocessor        │
-│  PsutilMemoryMonitor    │  PerThWatermarkDetector        │
-└─────────────────────────────────────────────────────────┘
-```
-
-**Rule:** Dependency arrows point **inward only**.  Domain never imports Gradio,
-torch, or chatterbox.  Adapters never import each other directly.
+> **Selected Flow:** Refactor (`flow/refactor.md`)
+> **Reason:** Improving structure without changing behavior — renaming adapter directories,
+> adding an infrastructure layer, and replacing manual DI wiring with a declarative container.
+> **Status:** Planning Phase
 
 ---
 
-## Final Directory Structure
+## 0. Router Output
+
+| Field        | Value                                                                       |
+|--------------|-----------------------------------------------------------------------------|
+| Flow         | `flow/refactor.md`                                                          |
+| Trigger      | Design inconsistency: `primary/secondary` naming, no infrastructure layer,  |
+|              | manual DI wiring in `bootstrap.py`                                          |
+| Next Step    | Execute planning checklist → approve → implement incrementally              |
+
+---
+
+## 1. Problem Statement
+
+The current codebase has solid hexagonal architecture in place, but three structural issues
+reduce clarity and make future growth harder:
+
+### Issue 1 — Adapter Naming (`primary/secondary` vs `inbound/outbound`)
 
 ```
-chatterbox-demo/
-├── app.py                                   # ENTRY POINT (~30 lines)
-├── compat.py                                # CROSS-CUTTING (unchanged)
-├── pyproject.toml                           # updated — src layout + pytest dev dep
-├── src/
-│   └── chatterbox_explorer/
-│       ├── __init__.py
-│       ├── config.py                        # AppConfig dataclass (device, watermark flag)
-│       ├── logging_config.py                # logging + warning suppression setup
-│       ├── bootstrap.py                     # DI root — wires all adapters → services
-│       │
-│       ├── domain/
-│       │   ├── __init__.py
-│       │   ├── models.py                    # Pure dataclasses — zero framework deps
-│       │   ├── languages.py                 # LANGUAGE_OPTIONS, SAMPLE_TEXTS, PARA_TAGS
-│       │   └── presets.py                   # PRESETS_TTS, PRESETS_TURBO (merged canonical)
-│       │
-│       ├── ports/
-│       │   ├── __init__.py
-│       │   ├── input.py                     # ITTSService, ITurboTTSService, … (ABC)
-│       │   └── output.py                    # IModelRepository, IAudioPreprocessor, … (ABC)
-│       │
-│       ├── services/
-│       │   ├── __init__.py
-│       │   ├── tts.py                       # TTSService, TurboTTSService, MultilingualTTSService
-│       │   ├── voice_conversion.py          # VoiceConversionService
-│       │   ├── model_manager.py             # ModelManagerService
-│       │   └── watermark.py                 # WatermarkService
-│       │
-│       └── adapters/
-│           ├── __init__.py
-│           ├── secondary/
-│           │   ├── __init__.py
-│           │   ├── device.py                # detect_device(), set_seed()
-│           │   ├── model_loader.py          # ChatterboxModelLoader  (IModelRepository)
-│           │   ├── audio.py                 # TorchAudioPreprocessor (IAudioPreprocessor)
-│           │   ├── memory.py                # PsutilMemoryMonitor    (IMemoryMonitor)
-│           │   └── watermark.py             # PerThWatermarkDetector (IWatermarkDetector)
-│           └── primary/
-│               ├── __init__.py
-│               └── gradio/
-│                   ├── __init__.py
-│                   ├── handlers.py          # All Gradio event callbacks
-│                   └── ui.py                # build_demo() → gr.Blocks
+current:                         target:
+adapters/primary/gradio/     →   adapters/inbound/gradio/
+adapters/primary/rest/       →   adapters/inbound/rest/
+adapters/secondary/audio.py  →   adapters/outbound/audio.py
+adapters/secondary/device.py →   adapters/outbound/device.py
+...                          →   ...
+```
+
+`inbound` / `outbound` is the dominant convention in modern hexagonal architecture
+literature and tooling. It communicates *direction of flow* (inbound = driven by external
+actors, outbound = driven by the application). `primary/secondary` is an older DDD term
+that is less intuitive for new contributors.
+
+### Issue 2 — No `infrastructure/` Layer
+
+Configuration and dependency-wiring currently live in `bootstrap.py` as a single
+procedural function. There is no clear home for:
+- Application-level settings (device, watermark flag, server options)
+- The DI container that wires everything together
+
+A dedicated `infrastructure/` package makes these concerns explicit and
+separate from domain logic.
+
+### Issue 3 — Manual Dependency Injection in `bootstrap.py`
+
+`build_app()` manually constructs and wires every object:
+
+```python
+model_repo   = ChatterboxModelLoader(device)
+preprocessor = TorchAudioPreprocessor()
+tts_svc      = TTSService(model_repo, preprocessor, seed_setter=set_seed)
+# ...
+```
+
+This is imperative and hard to test or override in isolation.
+`python-dependency-injector` provides a declarative container that:
+- Makes the dependency graph explicit and readable
+- Enables provider overriding in tests (`container.model_loader.override(mock)`)
+- Manages singleton lifetimes automatically
+- Scales cleanly when new services / adapters are added
+
+---
+
+## 2. What Does NOT Change
+
+To be explicit about scope — the following are **frozen** during this refactoring:
+
+| Layer                    | Status  | Reason                                              |
+|--------------------------|---------|-----------------------------------------------------|
+| `domain/`                | FROZEN  | Pure models, zero deps, already correct             |
+| `ports/input.py`         | FROZEN  | Port ABCs are well-defined, no issues               |
+| `ports/output.py`        | FROZEN  | Port ABCs are well-defined, no issues               |
+| `services/tts.py`        | FROZEN  | Domain logic is correct and well-tested             |
+| `services/turbo_tts.py`  | FROZEN  | Same as above                                       |
+| `services/multilingual`  | FROZEN  | Same as above                                       |
+| `services/vc.py`         | FROZEN  | Same as above                                       |
+| `services/watermark.py`  | FROZEN  | Same as above                                       |
+| `services/model_manager` | FROZEN  | Same as above                                       |
+| All adapter internals    | FROZEN  | Logic unchanged — only location + imports change    |
+| All tests                | FROZEN* | Only import paths updated, assertions unchanged     |
+| `compat.py`              | FROZEN  | Migration shims, no structural concern              |
+| `logging_config.py`      | FROZEN  | Cross-cutting concern, correct as-is                |
+
+> (*) Tests get import-path updates only — no assertion or fixture logic changes.
+
+**No `application/` use-case layer is added.** For a TTS inference service,
+the domain services ARE the use cases. Wrapping them in a separate application
+layer would be forced abstraction with no benefit at this scale.
+
+---
+
+## 3. Target Directory Structure
+
+```
+src/
 │
-└── tests/
-    ├── conftest.py                          # shared fixtures + mock factories
-    ├── unit/
-    │   ├── domain/
-    │   │   ├── test_models.py               # TTSRequest, AudioResult, etc.
-    │   │   ├── test_languages.py            # LANGUAGE_OPTIONS, SAMPLE_TEXTS
-    │   │   └── test_presets.py              # preset lookup, param ranges
-    │   ├── services/
-    │   │   ├── test_tts_service.py          # mock IModelRepository + IAudioPreprocessor
-    │   │   ├── test_voice_conversion_service.py
-    │   │   ├── test_model_manager_service.py
-    │   │   └── test_watermark_service.py
-    │   └── adapters/
-    │       ├── test_audio_preprocessor.py   # 40 ms alignment logic
-    │       └── test_device.py               # detect_device, set_seed
-    └── integration/
-        └── test_model_load.py               # existing test — runs real models
+├── domain/                         # UNCHANGED — pure domain layer
+│   ├── models.py
+│   ├── types.py
+│   ├── presets.py
+│   └── languages.py
+│
+├── ports/                          # UNCHANGED — port ABCs
+│   ├── input.py                    # ITTSService, ITurboTTSService, ...
+│   └── output.py                   # IModelRepository, IAudioPreprocessor, ...
+│
+├── services/                       # UNCHANGED — domain service implementations
+│   ├── tts.py
+│   ├── voice_conversion.py
+│   ├── model_manager.py
+│   └── watermark.py
+│
+├── adapters/
+│   ├── inbound/                    # RENAMED from primary/
+│   │   ├── __init__.py
+│   │   ├── gradio/
+│   │   │   ├── __init__.py
+│   │   │   ├── ui.py               # build_demo() — unchanged logic
+│   │   │   └── handlers.py         # GradioHandlers — unchanged logic
+│   │   └── rest/
+│   │       └── __init__.py         # Future FastAPI stub — unchanged
+│   │
+│   └── outbound/                   # RENAMED from secondary/
+│       ├── __init__.py
+│       ├── audio.py                # TorchAudioPreprocessor — unchanged
+│       ├── device.py               # detect_device, set_seed — unchanged
+│       ├── memory.py               # PsutilMemoryMonitor — unchanged
+│       ├── model_loader.py         # ChatterboxModelLoader — unchanged
+│       └── watermark.py            # PerThWatermarkDetector — unchanged
+│
+├── infrastructure/                 # NEW — config + DI wiring
+│   ├── __init__.py
+│   ├── config.py                   # NEW — AppSettings dataclass
+│   └── container.py                # NEW — AppContainer (dependency-injector)
+│
+├── bootstrap.py                    # SIMPLIFIED — thin shell → delegates to container
+├── cli.py                          # UPDATED — import paths only
+├── compat.py                       # UNCHANGED
+├── logging_config.py               # UNCHANGED
+├── __init__.py                     # UNCHANGED
+└── __main__.py                     # UNCHANGED
 ```
 
 ---
 
-## Domain Models  (`src/chatterbox_explorer/domain/models.py`)
+## 4. New File Contracts
 
-All dataclasses — **zero framework imports**.
+### 4.1 `infrastructure/config.py`
 
-| Class | Fields | Notes |
-|---|---|---|
-| `TTSRequest` | text, ref_audio_path, exaggeration, cfg_weight, temperature, rep_penalty, min_p, top_p, seed, streaming | Standard model params |
-| `TurboTTSRequest` | text, ref_audio_path, temperature, top_k, top_p, rep_penalty, min_p, norm_loudness, seed, streaming | Turbo-specific params |
-| `MultilingualTTSRequest` | text, language, ref_audio_path, exaggeration, cfg_weight, temperature, rep_penalty, min_p, top_p, seed, streaming | language = ISO 639-1 code |
-| `VoiceConversionRequest` | source_audio_path, target_voice_path | Audio-only, no text |
-| `AudioResult` | sample_rate: int, samples: np.ndarray (float32) | `.duration_s` property |
-| `ModelStatus` | key, display_name, class_name, description, params, size_gb, in_memory, on_disk | Per-model state |
-| `MemoryStats` | sys_total_gb, sys_used_gb, sys_avail_gb, sys_percent, proc_rss_gb, device_name, device_driver_gb, device_max_gb | Nullable device fields |
-| `WatermarkResult` | score, verdict, message, available | verdict ∈ {detected, not_detected, inconclusive, unavailable} |
-| `AppConfig` | device, watermark_available | Created once in bootstrap |
-
----
-
-## Port Contracts
-
-### Input Ports (`ports/input.py`)  — what calling code invokes
+Owns application-level settings that are resolved once at startup and passed
+through the system. Currently these live as bare variables inside `build_app()`.
 
 ```python
-class ITTSService(ABC):
-    def generate(self, request: TTSRequest) -> AudioResult: ...
-    def generate_stream(self, request: TTSRequest) -> Iterator[AudioResult]: ...
-
-class ITurboTTSService(ABC):
-    def generate(self, request: TurboTTSRequest) -> AudioResult: ...
-    def generate_stream(self, request: TurboTTSRequest) -> Iterator[AudioResult]: ...
-
-class IMultilingualTTSService(ABC):
-    def generate(self, request: MultilingualTTSRequest) -> AudioResult: ...
-    def generate_stream(self, request: MultilingualTTSRequest) -> Iterator[AudioResult]: ...
-
-class IVoiceConversionService(ABC):
-    def convert(self, request: VoiceConversionRequest) -> AudioResult: ...
-
-class IModelManagerService(ABC):
-    def load(self, key: str) -> str: ...           # returns status message
-    def unload(self, key: str) -> str: ...         # returns status message
-    def download(self, key: str) -> Iterator[str]: # yields progress lines
-    def get_all_status(self) -> list[ModelStatus]: ...
-    def get_memory_stats(self) -> MemoryStats: ...
-
-class IWatermarkService(ABC):
-    def detect(self, audio_path: str) -> WatermarkResult: ...
+# infrastructure/config.py
+@dataclass(frozen=True)
+class AppSettings:
+    watermark_available: bool
+    device: DeviceType          # "cuda" | "mps" | "cpu"
 ```
 
-### Output Ports (`ports/output.py`) — what services need from infrastructure
+**Why a separate file?**
+- Single source of truth for runtime config
+- Enables the DI container to reference settings by name
+- Makes it obvious what "application config" consists of
+
+### 4.2 `infrastructure/container.py`
+
+Declarative DI container using `dependency-injector`.
 
 ```python
-class IModelRepository(ABC):
-    def get_model(self, key: str) -> Any: ...
-    def is_loaded(self, key: str) -> bool: ...
-    def is_cached_on_disk(self, key: str) -> bool: ...
-    def unload(self, key: str) -> None: ...
-    def download(self, key: str) -> Iterator[str]: ...   # yields filenames
+# infrastructure/container.py
+from dependency_injector import containers, providers
 
-class IAudioPreprocessor(ABC):
-    def preprocess(self, path: str | None) -> str | None: ...
+class AppContainer(containers.DeclarativeContainer):
 
-class IMemoryMonitor(ABC):
-    def get_stats(self) -> MemoryStats: ...
+    # ── Configuration ──────────────────────────────────────────────────
+    config = providers.Configuration()
 
-class IWatermarkDetector(ABC):
-    def detect(self, audio_path: str) -> float: ...   # returns raw score
-    def is_available(self) -> bool: ...
-```
+    # ── Outbound adapters (infrastructure) ─────────────────────────────
+    device = providers.Callable(detect_device)
 
----
-
-## Service Responsibilities
-
-| Service | Depends on | Key behaviours |
-|---|---|---|
-| `TTSService` | `IModelRepository`, `IAudioPreprocessor` | Raises `ValueError` for empty text; splits sentences for streaming; calls `set_seed`; never imports gradio |
-| `TurboTTSService` | same | Same as above; catches `AssertionError` from Turbo 5-second check and re-raises as `ValueError` |
-| `MultilingualTTSService` | same | Parses language code; same streaming logic |
-| `VoiceConversionService` | `IModelRepository`, `IAudioPreprocessor` | Raises `ValueError` for missing paths |
-| `ModelManagerService` | `IModelRepository`, `IMemoryMonitor` | Delegates load/unload/download; aggregates status |
-| `WatermarkService` | `IWatermarkDetector` | Wraps raw score into `WatermarkResult` with verdict |
-
-**Services NEVER:** call `gr.Warning`, `gr.Error`, import torch, import gradio.
-
----
-
-## Secondary Adapter Responsibilities
-
-| Adapter | Implements | Key details |
-|---|---|---|
-| `ChatterboxModelLoader` | `IModelRepository` | Holds `_cache: dict`; lazy loads from HF; `DEVICE` injected via constructor |
-| `TorchAudioPreprocessor` | `IAudioPreprocessor` | 40 ms frame alignment; writes aligned wav to tempfile |
-| `PsutilMemoryMonitor` | `IMemoryMonitor` | 1.5 s TTL cache; MPS `driver_allocated_memory()` |
-| `PerThWatermarkDetector` | `IWatermarkDetector` | Returns 0.0 + `available=False` when no-op watermarker active |
-
----
-
-## Primary Adapter — Gradio
-
-`adapters/primary/gradio/handlers.py`
-- All Gradio event callbacks (`generate_tts`, `generate_turbo`, etc.)
-- Receives domain service instances via constructor injection
-- Translates `ValueError` → `gr.Warning`, other exceptions → `gr.Error`
-- Converts `AudioResult.samples` (float32) → int16 tuple for `gr.Audio`
-- `render_manager_html()` lives here (view rendering is adapter concern)
-
-`adapters/primary/gradio/ui.py`
-- Single public function: `build_demo(services, config) -> gr.Blocks`
-- `with gr.Blocks(...) as demo:` is **inside this function** (not module-level)
-- Receives all service instances + `AppConfig` as parameters
-- No direct secondary adapter imports
-
----
-
-## Bootstrap (`src/chatterbox_explorer/bootstrap.py`)
-
-```
-def build_app(device: str) -> tuple[gr.Blocks, AppConfig]:
-    # 1. Create secondary adapters (inject device)
-    model_repo   = ChatterboxModelLoader(device)
-    preprocessor = TorchAudioPreprocessor()
-    mem_monitor  = PsutilMemoryMonitor(device)
-    wm_detector  = PerThWatermarkDetector()
-
-    # 2. Create domain services (inject secondary adapters via ports)
-    tts_svc   = TTSService(model_repo, preprocessor)
-    turbo_svc = TurboTTSService(model_repo, preprocessor)
-    mtl_svc   = MultilingualTTSService(model_repo, preprocessor)
-    vc_svc    = VoiceConversionService(model_repo, preprocessor)
-    mgr_svc   = ModelManagerService(model_repo, mem_monitor)
-    wm_svc    = WatermarkService(wm_detector)
-
-    config = AppConfig(device=device, watermark_available=wm_detector.is_available())
-
-    # 3. Build primary adapter (inject services)
-    from chatterbox_explorer.adapters.primary.gradio.ui import build_demo
-    demo = build_demo(
-        tts=tts_svc, turbo=turbo_svc, mtl=mtl_svc,
-        vc=vc_svc, manager=mgr_svc, watermark=wm_svc,
-        config=config,
+    model_loader = providers.Singleton(
+        ChatterboxModelLoader,
+        device=device,
     )
-    return demo, config
+    audio_preprocessor = providers.Singleton(TorchAudioPreprocessor)
+    memory_monitor     = providers.Singleton(PsutilMemoryMonitor, device=device)
+    watermark_detector = providers.Singleton(
+        PerThWatermarkDetector,
+        available=config.watermark_available,
+    )
+
+    # ── Domain services ────────────────────────────────────────────────
+    tts_service = providers.Singleton(
+        TTSService,
+        model_repo=model_loader,
+        preprocessor=audio_preprocessor,
+        seed_setter=providers.Object(set_seed),
+    )
+    turbo_service = providers.Singleton(
+        TurboTTSService,
+        model_repo=model_loader,
+        preprocessor=audio_preprocessor,
+        seed_setter=providers.Object(set_seed),
+    )
+    multilingual_service = providers.Singleton(
+        MultilingualTTSService,
+        model_repo=model_loader,
+        preprocessor=audio_preprocessor,
+        seed_setter=providers.Object(set_seed),
+    )
+    vc_service = providers.Singleton(
+        VoiceConversionService,
+        model_repo=model_loader,
+        preprocessor=audio_preprocessor,
+    )
+    model_manager_service = providers.Singleton(
+        ModelManagerService,
+        model_repo=model_loader,
+        mem_monitor=memory_monitor,
+    )
+    watermark_service = providers.Singleton(
+        WatermarkService,
+        detector=watermark_detector,
+    )
+
+    # ── App config value-object ────────────────────────────────────────
+    app_config = providers.Factory(
+        AppConfig,
+        device=device,
+        watermark_available=config.watermark_available,
+    )
 ```
 
----
+**Critical design constraint preserved:**
+All imports inside `container.py` fire only when that module is imported.
+`bootstrap.py` imports `container.py` lazily (inside the function body),
+so compat patches in `cli.py` still fire before any chatterbox/torch code loads.
+The import order guarantee is unchanged.
 
-## TDD Strategy
-
-### Principle
-**Red → Green → Refactor** for every new unit.  Integration tests (real model
-loading) are kept in `tests/integration/` and run separately from unit tests.
-
-### Test Levels
-
-| Level | Location | Framework deps | Run time |
-|---|---|---|---|
-| Unit — domain | `tests/unit/domain/` | None | < 1 s |
-| Unit — services | `tests/unit/services/` | `unittest.mock` | < 1 s |
-| Unit — adapters | `tests/unit/adapters/` | `torch`, `torchaudio` (small) | < 5 s |
-| Integration | `tests/integration/` | Real chatterbox models | 30–120 s |
-
-### What to test per layer
-
-**Domain models** — field defaults, validation, `AudioResult.duration_s` property.
-
-**Presets** — all 10 standard + 6 turbo presets present; every param in valid
-slider range; `get_standard_preset()` returns correct values.
-
-**Languages** — 23 entries in `LANGUAGE_OPTIONS`; all have `SAMPLE_TEXTS`;
-all codes in `LANGUAGE_AUDIO_DEFAULTS` are ISO 639-1.
-
-**Services (mocked ports):**
-- `ValueError` raised on empty text
-- Preprocessor is called with the ref path from the request
-- Model `generate()` is called with correct kwargs
-- `split_sentences` splits on `.  !  ?` boundaries correctly
-- Streaming yields multiple `AudioResult` objects (one per sentence)
-- `ModelManagerService.unload()` calls `repo.unload()` and `monitor.get_stats()`
-
-**Audio preprocessor:**
-- `None` input → `None` output (no crash)
-- Already-aligned audio → same path returned (no tempfile written)
-- Unaligned audio → new path with sample count divisible by `frame_samples`
-
-**Device:**
-- `set_seed(0)` is a no-op (does not raise)
-- `set_seed(42)` sets torch seed without error
-
-### Mock Pattern
+### 4.3 `bootstrap.py` (simplified)
 
 ```python
-# tests/conftest.py
-@pytest.fixture
-def mock_model():
-    m = MagicMock()
-    m.sr = 24000
-    m.generate.return_value = torch.zeros(1, 24000)
-    return m
+def build_app(watermark_available: bool) -> tuple[gr.Blocks, AppConfig]:
+    # Deferred import ensures compat patches fire first (unchanged contract)
+    from infrastructure.container import AppContainer
+    from adapters.inbound.gradio.ui import build_demo
 
-@pytest.fixture
-def mock_model_repo(mock_model):
-    repo = MagicMock(spec=IModelRepository)
-    repo.get_model.return_value = mock_model
-    repo.is_loaded.return_value = False
-    return repo
+    container = AppContainer()
+    container.config.watermark_available.from_value(watermark_available)
 
-@pytest.fixture
-def mock_preprocessor():
-    p = MagicMock(spec=IAudioPreprocessor)
-    p.preprocess.side_effect = lambda path: path   # passthrough
-    return p
+    demo = build_demo(
+        tts=container.tts_service(),
+        turbo=container.turbo_service(),
+        mtl=container.multilingual_service(),
+        vc=container.vc_service(),
+        manager=container.model_manager_service(),
+        watermark=container.watermark_service(),
+        config=container.app_config(),
+    )
+    return demo, container.app_config()
 ```
 
-### TDD Order of Implementation
+`bootstrap.py` shrinks from ~120 lines to ~20 lines. All wiring knowledge
+moves into the container where it is declarative, inspectable, and overridable.
 
+---
+
+## 5. Dependency Changes
+
+### Add to `pyproject.toml`
+
+```toml
+[project]
+dependencies = [
+    "chatterbox-tts",
+    "dependency-injector>=4.41.0",    # NEW — declarative DI container
+    "diffusers>=0.29.0,<1.0.0",
+    "gradio>=4.40.0",
+    "peft>=0.6.0",
+]
 ```
-Phase 1  — domain/models.py       + tests/unit/domain/test_models.py
-Phase 2  — domain/presets.py      + tests/unit/domain/test_presets.py
-Phase 3  — domain/languages.py    + tests/unit/domain/test_languages.py
-Phase 4  — ports/input.py  (ABC — no tests needed, verified by service tests)
-Phase 5  — ports/output.py (ABC — same)
-Phase 6  — services/tts.py        + tests/unit/services/test_tts_service.py
-Phase 7  — services/voice_conversion.py + test
-Phase 8  — services/model_manager.py    + test
-Phase 9  — services/watermark.py        + test
-Phase 10 — adapters/secondary/audio.py  + tests/unit/adapters/test_audio_preprocessor.py
-Phase 11 — adapters/secondary/device.py + tests/unit/adapters/test_device.py
-Phase 12 — adapters/secondary/model_loader.py (integration — uses real HF cache)
-Phase 13 — adapters/secondary/memory.py (integration — uses real psutil)
-Phase 14 — logging_config.py + bootstrap.py
-Phase 15 — adapters/primary/gradio/handlers.py + ui.py
-Phase 16 — app.py (thin entry point)
-Phase 17 — Run all tests; fix regressions
-Phase 18 — git commit
+
+**Why `dependency-injector`?**
+- 4.9k stars, actively maintained, production-grade
+- Provides `Singleton`, `Factory`, `Callable`, `Object`, `Configuration` providers
+  covering every pattern used in this codebase
+- First-class test support via `container.provider.override(mock)`
+- Avoids the need for global module state or manual singleton guards
+- Written in Cython — fast provider resolution
+- Preferred over alternatives (pinject, injector) due to explicit provider graph
+  and excellent documentation
+
+### Update `pyproject.toml` — ruff isort
+
+```toml
+[tool.ruff.lint.isort]
+known-first-party = [
+    "domain", "ports", "services", "adapters",
+    "bootstrap", "logging_config", "cli",
+    "infrastructure",                            # NEW
+]
+```
+
+### Update `pyproject.toml` — coverage omit
+
+```toml
+[tool.coverage.run]
+omit = [
+    "src/adapters/inbound/*",      # renamed from primary
+    "src/cli.py",
+    "src/bootstrap.py",
+    "src/__init__.py",
+    "src/__main__.py",
+]
 ```
 
 ---
 
-## Constraints
+## 6. Complete Import Change Map
 
-- Domain layer: **zero imports from torch, gradio, chatterbox, huggingface_hub, psutil**
-- Services: zero imports from gradio; may import numpy for `AudioResult`
-- Secondary adapters: may import torch, torchaudio, chatterbox, psutil, huggingface_hub
-- Primary Gradio adapter: may import gradio; receives services via DI only
-- `compat.py`: stays at root, unchanged
-- `test_model_load.py` (existing integration test): must still pass after refactor
-- `app.py` (new): ≤ 40 lines; only parses args + calls bootstrap + launches
+Every reference to the old paths must be updated. Full inventory:
+
+### Source files
+
+| File                                      | Old import                            | New import                           |
+|-------------------------------------------|---------------------------------------|--------------------------------------|
+| `src/bootstrap.py`                        | `adapters.secondary.audio`            | `adapters.outbound.audio`            |
+| `src/bootstrap.py`                        | `adapters.secondary.device`           | `adapters.outbound.device`           |
+| `src/bootstrap.py`                        | `adapters.secondary.memory`           | `adapters.outbound.memory`           |
+| `src/bootstrap.py`                        | `adapters.secondary.model_loader`     | `adapters.outbound.model_loader`     |
+| `src/bootstrap.py`                        | `adapters.secondary.watermark`        | `adapters.outbound.watermark`        |
+| `src/bootstrap.py`                        | `adapters.primary.gradio.ui`          | `adapters.inbound.gradio.ui`         |
+| `src/cli.py`                              | `adapters.primary.gradio.ui`          | `adapters.inbound.gradio.ui`         |
+| `src/adapters/primary/gradio/handlers.py` | `adapters.secondary.audio`            | `adapters.outbound.audio`            |
+| `src/adapters/primary/gradio/ui.py`       | `adapters.primary.gradio.handlers`    | `adapters.inbound.gradio.handlers`   |
+| `src/infrastructure/container.py`         | (new — uses `adapters.outbound.*`)    | —                                    |
+
+### Test files
+
+| File                                          | Old import / patch                              | New import / patch                             |
+|-----------------------------------------------|-------------------------------------------------|------------------------------------------------|
+| `tests/unit/adapters/test_audio_preprocessor` | `adapters.secondary.audio`                      | `adapters.outbound.audio`                      |
+| `tests/unit/adapters/test_device`             | `adapters.secondary.device`                     | `adapters.outbound.device`                     |
+| `tests/unit/adapters/test_memory_monitor`     | `adapters.secondary.memory`                     | `adapters.outbound.memory`                     |
+| `tests/unit/adapters/test_model_loader`       | `adapters.secondary.model_loader`               | `adapters.outbound.model_loader`               |
+| `tests/unit/adapters/test_model_loader`       | `patch("adapters.secondary.model_loader.gc")`   | `patch("adapters.outbound.model_loader.gc")`   |
+| `tests/unit/adapters/test_model_loader`       | `patch("adapters.secondary.model_loader.MODEL…")` | `patch("adapters.outbound.model_loader.MODEL…")` |
+| `tests/unit/adapters/test_watermark_detector` | `adapters.secondary.watermark`                  | `adapters.outbound.watermark`                  |
+| `tests/unit/adapters/test_watermark_detector` | `logger="adapters.secondary.watermark"`         | `logger="adapters.outbound.watermark"`         |
+| `tests/unit/adapters/test_device`             | docstring mentions `.secondary.`                | update docstring                               |
+
+### Docstrings / comments (non-functional but should be consistent)
+
+| File                                   | Content to update                                    |
+|----------------------------------------|------------------------------------------------------|
+| `src/adapters/primary/rest/__init__.py`| "Entry point would be: adapters.primary.rest.app:app" |
+| `src/bootstrap.py`                     | "Secondary adapters (infrastructure layer)" comment   |
+| `app.py`                               | Directory listing in module docstring                 |
 
 ---
 
-## Risks
+## 7. Implementation Phases
 
-| Risk | Mitigation |
-|---|---|
-| Gradio `with gr.Blocks` runs at module import | Wrap in `build_demo()` function |
-| `_MODEL_CACHE` global state breaks test isolation | Make it an instance variable on `ChatterboxModelLoader` |
-| `render_manager_html` calls secondary adapter functions | Move HTML rendering entirely to primary adapter; secondary returns data objects |
-| `presets.py` root file and `PRESETS_TTS` in `app.py` diverge | Single canonical source in `domain/presets.py`; delete both old files |
-| 12 hardcoded lambda closures for Model Manager tab | Replace with a loop over `MODEL_REGISTRY.keys()` |
-| `_WATERMARK_AVAILABLE` referenced at UI build time | Pass via `AppConfig` to `build_demo()` |
+Phases are ordered for minimal breakage. Each phase must leave tests passing
+before the next phase begins.
+
+### Phase 1 — Directory Rename (no logic change)
+
+**Goal:** Move files, keep all imports temporarily broken, fix imports in same commit.
+
+**Steps:**
+1. Copy `src/adapters/primary/` → `src/adapters/inbound/`
+2. Copy `src/adapters/secondary/` → `src/adapters/outbound/`
+3. Update all import strings across all files (see table above)
+4. Delete old `src/adapters/primary/` and `src/adapters/secondary/`
+5. Verify: `uv run pytest tests/unit/ -x` — all tests pass
+
+**Files touched:** All files in the import change map above.
+
+**Risk:** Low. Pure rename + import update. No logic changes.
+
+### Phase 2 — Add `infrastructure/` Package
+
+**Goal:** Create the package with `config.py` and stub `container.py`.
+
+**Steps:**
+1. Create `src/infrastructure/__init__.py`
+2. Create `src/infrastructure/config.py` with `AppSettings` dataclass
+3. Create `src/infrastructure/container.py` stub (empty container, no providers yet)
+4. Update `pyproject.toml` isort known-first-party
+5. Verify: `uv run pytest tests/unit/ -x` — all tests pass (nothing wired yet)
+
+**Files touched:** 3 new files + `pyproject.toml`.
+
+**Risk:** Minimal. No existing code changes.
+
+### Phase 3 — Add `dependency-injector` + Wire `AppContainer`
+
+**Goal:** Implement the full declarative container, simplify `bootstrap.py`.
+
+**Steps:**
+1. Add `dependency-injector>=4.41.0` to `pyproject.toml` dependencies
+2. Run `uv lock` to update the lockfile
+3. Implement `infrastructure/container.py` (all providers wired)
+4. Refactor `bootstrap.py` to use `AppContainer` (replaces manual wiring)
+5. Update `cli.py` if needed (minimal changes expected)
+6. Verify: `uv run pytest tests/unit/ -x` — all tests pass
+
+**Files touched:** `pyproject.toml`, `uv.lock`, `infrastructure/container.py`, `bootstrap.py`.
+
+**Risk:** Medium. Core wiring changes. Mitigated by: unit tests don't call `build_app()`,
+so failures would be isolated to the integration test scope.
+
+### Phase 4 — Update Coverage Config + Docstrings
+
+**Goal:** Keep config accurate, clean up all documentation references.
+
+**Steps:**
+1. Update `pyproject.toml` coverage `omit` paths (`primary→inbound`)
+2. Update docstrings in `rest/__init__.py`, `bootstrap.py`, `app.py`
+3. Update `tests/unit/adapters/test_device.py` docstring
+4. Verify: `uv run pytest --cov=src tests/unit/ -x` — coverage threshold maintained
+
+**Files touched:** `pyproject.toml` + 4 docstrings.
+
+**Risk:** None. Documentation only.
+
+### Phase 5 — Final Validation
+
+```bash
+uv run pytest tests/ -x --tb=short          # all tests pass
+uv run pytest --cov=src tests/unit/          # coverage ≥ 95%
+uv run ruff check src/ tests/               # zero lint errors
+uv run ruff format --check src/ tests/      # formatting clean
+```
 
 ---
 
-## Success Criteria
+## 8. Risk Register
 
-- [ ] `uv run pytest tests/unit/ -v` — all unit tests GREEN (no real models needed)
-- [ ] `uv run pytest tests/integration/ -v` — integration tests GREEN (existing test_model_load.py)
-- [ ] `uv run python app.py` — app starts and all 7 tabs function identically to current
-- [ ] Domain layer has zero imports from torch/gradio/chatterbox (verified by test)
-- [ ] A new delivery adapter (e.g. REST) can be added by only touching `adapters/primary/`
-- [ ] `uv run pytest --co -q` shows ≥ 40 collected test items
+| Risk                              | Likelihood | Impact | Mitigation                                      |
+|-----------------------------------|------------|--------|-------------------------------------------------|
+| Missed import reference           | Medium     | Low    | `grep -r "adapters.primary\|adapters.secondary"` before closing |
+| `dependency-injector` version conflict | Low   | Medium | Pin to `>=4.41.0` (tested with Singleton + Callable) |
+| Singleton lifecycle mismatch      | Low        | Medium | Container is constructed once in `build_app()` — same as current |
+| `device` provider called twice    | Low        | Low    | `providers.Callable` calls fn each time; wrap in `providers.Singleton` if needed |
+| Lazy import order broken          | Low        | High   | `container.py` imported inside `build_app()` body — patches guaranteed to fire first |
+| Coverage drops below 95%          | Low        | Low    | Infrastructure files (container, config) excluded from measurement or tested via unit tests |
+| Patch strings in tests broken     | Medium     | Medium | Full table in Section 6 covers every patch string; grep validation in Phase 5 |
+
+---
+
+## 9. Testing Strategy for New Code
+
+### `infrastructure/config.py`
+- Unit test `AppSettings` creation with known values
+- Verify frozen dataclass rejects mutation
+
+### `infrastructure/container.py`
+- Unit test: container wires without raising (all providers resolve)
+- Unit test: `container.model_loader.override(mock)` correctly replaces the singleton
+- Do NOT test with real chatterbox models — use mock providers
+
+```python
+# Example container override test (no real models needed)
+def test_container_override():
+    from infrastructure.container import AppContainer
+    container = AppContainer()
+    container.config.watermark_available.from_value(False)
+
+    mock_loader = Mock(spec=IModelRepository)
+    with container.model_loader.override(mock_loader):
+        tts = container.tts_service()
+        assert tts._repo is mock_loader
+```
+
+---
+
+## 10. Success Criteria
+
+- [ ] `src/adapters/primary/` and `src/adapters/secondary/` no longer exist
+- [ ] `src/adapters/inbound/` and `src/adapters/outbound/` exist with identical content
+- [ ] `src/infrastructure/config.py` contains `AppSettings`
+- [ ] `src/infrastructure/container.py` contains `AppContainer` with all providers declared
+- [ ] `bootstrap.py` is ≤ 30 lines — delegates entirely to `AppContainer`
+- [ ] `dependency-injector>=4.41.0` is in `pyproject.toml` and `uv.lock`
+- [ ] Zero `grep` hits for `adapters.primary` or `adapters.secondary` in any `.py` file
+- [ ] `uv run pytest tests/unit/ -x` passes with no failures
+- [ ] `uv run pytest --cov=src tests/unit/` reports ≥ 95% coverage
+- [ ] `uv run ruff check src/ tests/` reports zero errors
+- [ ] App launches correctly: `uv run chatterbox-explorer`
+
+---
+
+## 11. Constraints
+
+1. **Behavior unchanged** — no feature additions, no bug fixes mixed in
+2. **Deferred import order preserved** — `container.py` must be imported
+   inside `build_app()`, never at module level
+3. **No new abstraction layers** — no `application/` use-case layer added
+4. **No domain changes** — `domain/`, `ports/`, `services/` are frozen
+5. **Incremental** — each phase leaves the test suite green
+
+---
+
+## 12. Decisions Made in This Plan
+
+| # | Decision                                | Alternatives Rejected                        |
+|---|-----------------------------------------|----------------------------------------------|
+| 1 | Rename to `inbound/outbound`            | Keep `primary/secondary` (less intuitive)    |
+| 2 | Use `dependency-injector` library       | `injector`, `pinject`, custom DI (less battle-tested) |
+| 3 | Keep `ports/` directory name            | Move to `domain/interfaces/` (unnecessary churn) |
+| 4 | No `application/` use-case layer        | Add thin wrappers (over-engineering for TTS app) |
+| 5 | Container instantiated in `build_app()` | Module-level container (breaks lazy import order) |
+| 6 | `AppSettings` in `infrastructure/`      | Keep in `domain/models.py` (infra concern, not domain) |

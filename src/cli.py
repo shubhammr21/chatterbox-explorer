@@ -164,7 +164,7 @@ def main(argv: list[str] | None = None) -> None:
     atexit.register(demo.close)
 
     # ── Step 5: launch ────────────────────────────────────────────────────────
-    from adapters.primary.gradio.ui import (
+    from adapters.inbound.gradio.ui import (
         GRADIO_CSS,
         GRADIO_THEME,
     )

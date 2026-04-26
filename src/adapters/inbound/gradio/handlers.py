@@ -1,5 +1,5 @@
 """
-src/adapters/primary/gradio/handlers.py
+src/adapters/inbound/gradio/handlers.py
 ===========================================================
 GradioHandlers — owns all Gradio event callbacks for the Chatterbox TTS Explorer UI.
 
@@ -28,7 +28,7 @@ from typing import TYPE_CHECKING
 
 import gradio as gr
 
-from adapters.secondary.audio import to_gradio_audio
+from adapters.outbound.audio import to_gradio_audio
 from domain.languages import (
     LANGUAGE_AUDIO_DEFAULTS,
     SAMPLE_TEXTS,

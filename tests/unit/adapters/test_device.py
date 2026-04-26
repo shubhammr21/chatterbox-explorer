@@ -7,7 +7,7 @@ TDD unit tests for the device detection and seed management helpers.
     set_seed()      — sets global RNG seeds for reproducible generation
 
 Both functions live in:
-    chatterbox_explorer.adapters.secondary.device
+    chatterbox_explorer.adapters.outbound.device
 
 torch is required at test-time (imported via pytest.importorskip).
 numpy and the stdlib random module are also exercised by set_seed tests.
@@ -24,7 +24,7 @@ import pytest
 # isn't (e.g. a stripped CI environment).
 torch = pytest.importorskip("torch", reason="torch required for device adapter tests")
 
-from adapters.secondary.device import detect_device, set_seed
+from adapters.outbound.device import detect_device, set_seed
 
 # ──────────────────────────────────────────────────────────────────────────────
 # detect_device

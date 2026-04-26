@@ -111,3 +111,106 @@ Put all application code in a single `app.py` file.
 ### Trade-offs
 - File will be ~400 lines — manageable but not ideal for long-term maintenance
 - If this evolves into a real product, restructure into modules (see NOTES.md)
+
+---
+
+## Decision 6: Rename `adapters/primary` → `adapters/inbound` and `adapters/secondary` → `adapters/outbound`
+
+### Decision
+Rename the adapter sub-directories from `primary/secondary` to `inbound/outbound`.
+
+### Why
+- `inbound` / `outbound` communicates **direction of data flow** — inbound adapters are
+  driven by external actors (UI, API clients), outbound adapters are driven by the
+  application (models, infrastructure).
+- `primary/secondary` is an older DDD term that is less intuitive for contributors
+  unfamiliar with Evans-era literature.
+- Modern hexagonal architecture tooling, blog posts, and reference codebases
+  consistently use `inbound/outbound` — lowers the onboarding barrier.
+- The rename is pure mechanics (no logic changes), so it carries zero behavioural risk.
+
+### Alternatives Rejected
+- **Keep `primary/secondary`**: Working but creates terminology friction for new
+  contributors and diverges from current industry convention.
+- **Use `driving/driven`**: Also valid hexagonal terminology but even less widely
+  recognised than `inbound/outbound`.
+
+### Trade-offs
+- All 17 import references had to be updated across source and test files.
+- Module docstrings referencing old paths also required manual updates.
+- `pyproject.toml` per-file-ignores and coverage omit paths needed updating.
+
+---
+
+## Decision 7: Add `infrastructure/` Layer with `AppSettings` and `AppContainer`
+
+### Decision
+Introduce a dedicated `src/infrastructure/` package containing:
+- `config.py` — `AppSettings` frozen dataclass (device, watermark_available)
+- `container.py` — `AppContainer` declarative DI container
+
+### Why
+- The old `bootstrap.py` mixed two concerns: runtime config resolution and manual
+  object construction wiring. Neither had a clear conceptual home.
+- `AppSettings` belongs in infrastructure (not domain) because it is a runtime-resolved
+  value produced by infrastructure probing (device detection, library availability check),
+  not a business concept.
+- `infrastructure/` is the conventional home for DI wiring in hexagonal architecture
+  — it knows about both the port ABCs and the concrete adapter implementations.
+
+### Alternatives Rejected
+- **Keep everything in `bootstrap.py`**: Workable but the file conflates config
+  resolution, object construction, and adapter selection in one procedural block.
+- **Put `AppSettings` in `domain/models.py`**: Domain layer must be free of
+  infrastructure concerns; device strings and library flags are not domain concepts.
+- **Separate `wiring.py` and `settings.py` at the `src/` root**: Less discoverable
+  than a dedicated `infrastructure/` package; breaks convention.
+
+### Trade-offs
+- Two new files to maintain; mitigated by comprehensive unit tests for both.
+- `container.py` must remain a deferred import (inside `build_app()`) to preserve
+  the compat-patch ordering guarantee — this constraint is documented explicitly.
+
+---
+
+## Decision 8: Replace Manual DI Wiring with `python-dependency-injector`
+
+### Decision
+Replace the manual object-construction wiring in `bootstrap.py` with a declarative
+`AppContainer` using the `dependency-injector` library (v4.49.0).
+
+### Why
+- The previous manual wiring was imperative (~120 lines of explicit constructor calls)
+  and not testable in isolation — to test that `TTSService` received the right repo,
+  you had to call `build_app()` or repeat the construction manually in tests.
+- `dependency-injector` provides:
+  - `providers.Singleton` — singletons without manual caching
+  - `providers.Configuration` — runtime config values injected by name
+  - `providers.Object` — inject a callable reference (e.g. `set_seed`)
+  - `provider.override()` — replace any provider in tests without touching source
+- The override capability is the key gain: tests can now swap out
+  `ChatterboxModelLoader` for a `MagicMock(spec=IModelRepository)` without
+  loading torch, enabling fast container-level integration tests.
+- `bootstrap.py` shrinks from ~120 lines to ~25 lines — pure coordination code.
+
+### Library Selection Rationale
+- **4.9k GitHub stars**, actively maintained (v4.49.0 released 2026)
+- Written in Cython — provider resolution is fast
+- First-class `mypy` stubs included
+- Well-documented patterns for Flask, FastAPI, and plain Python apps
+- `providers.Singleton` / `providers.Configuration` map directly to the patterns
+  already used implicitly in the old manual wiring
+
+### Alternatives Rejected
+- **`injector`** (Google's library): Uses decorators (`@inject`, `@singleton`) which
+  couple service classes to the DI framework — violates the hexagonal boundary.
+- **`pinject`**: Less maintained, requires class-name-based binding which is fragile.
+- **Keep manual wiring**: Zero new dependencies but loses testability and explicitness
+  of the dependency graph.
+
+### Trade-offs
+- New `dependency-injector>=4.41.0` dependency added to `pyproject.toml`.
+- The deferred-import constraint (container imported inside `build_app()`) must be
+  maintained or compat patches will fire after chatterbox/torch code loads.
+- `providers.pyx` (Cython source) cannot be parsed by the coverage tool — produces
+  a harmless `CoverageWarning` that is expected and documented.

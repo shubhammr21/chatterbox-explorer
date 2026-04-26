@@ -25,12 +25,13 @@ Nothing else belongs here.  All application logic lives in:
     ├── bootstrap.py        ← dependency injection: wires adapters → services
     ├── compat.py           ← migration shims for deprecated third-party APIs
     ├── logging_config.py   ← logging + warning suppression setup
+    ├── infrastructure/     ← DI container + app settings
     ├── domain/             ← pure domain models, presets, language data
     ├── ports/              ← ABC port interfaces (input + output)
     ├── services/           ← domain service implementations
     └── adapters/
-        ├── primary/        ← Gradio UI adapter (and future REST / CLI / gRPC)
-        └── secondary/      ← infrastructure adapters (models, audio, memory …)
+        ├── inbound/        ← Gradio UI adapter (and future REST / CLI / gRPC)
+        └── outbound/       ← infrastructure adapters (models, audio, memory …)
 """
 
 from cli import main

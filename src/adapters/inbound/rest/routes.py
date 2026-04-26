@@ -1,5 +1,5 @@
 """
-src/adapters/primary/rest/routes.py
+src/adapters/inbound/rest/routes.py
 ========================================================
 FastAPI REST routes — stub showing where to add REST endpoints.
 

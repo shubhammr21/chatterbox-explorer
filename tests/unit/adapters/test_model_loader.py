@@ -31,7 +31,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from adapters.secondary.model_loader import MODEL_REGISTRY, ChatterboxModelLoader
+from adapters.outbound.model_loader import MODEL_REGISTRY, ChatterboxModelLoader
 
 # ──────────────────────────────────────────────────────────────────────────────
 # MODEL_REGISTRY constant
@@ -315,7 +315,7 @@ class TestUnload:
         loader._cache["tts"] = MagicMock()
         with (
             patch.dict(sys.modules, {"torch": cpu_torch_mock}),
-            patch("adapters.secondary.model_loader.gc") as mock_gc,
+            patch("adapters.outbound.model_loader.gc") as mock_gc,
         ):
             loader.unload("tts")
         mock_gc.collect.assert_called_once()
@@ -365,7 +365,7 @@ class TestUnload:
 
         with (
             patch.dict(sys.modules, {"torch": cuda_torch_mock}),
-            patch("adapters.secondary.model_loader.gc"),
+            patch("adapters.outbound.model_loader.gc"),
         ):
             loader.unload("tts")
 
@@ -460,7 +460,7 @@ class TestDownload:
         patched_registry = {**MODEL_REGISTRY}
         patched_registry["tts"] = {**MODEL_REGISTRY["tts"], "dl_mode": "unknown"}
 
-        with patch("adapters.secondary.model_loader.MODEL_REGISTRY", patched_registry):
+        with patch("adapters.outbound.model_loader.MODEL_REGISTRY", patched_registry):
             messages = list(loader.download("tts"))
 
         assert any("Unknown dl_mode" in m for m in messages), (

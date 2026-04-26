@@ -29,7 +29,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from adapters.secondary.watermark import PerThWatermarkDetector
+from adapters.outbound.watermark import PerThWatermarkDetector
 
 # ──────────────────────────────────────────────────────────────────────────────
 # Shared helpers / fixtures
@@ -245,7 +245,7 @@ class TestDetectAvailableExceptionPath:
         detector = PerThWatermarkDetector(available=True)
         with (
             patch.dict(sys.modules, {"librosa": mock_librosa, "perth": mock_perth}),
-            caplog.at_level(logging.WARNING, logger="adapters.secondary.watermark"),
+            caplog.at_level(logging.WARNING, logger="adapters.outbound.watermark"),
         ):
             detector.detect("/tmp/audio.wav")
 

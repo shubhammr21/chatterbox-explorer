@@ -1,7 +1,7 @@
 """
-src/adapters/secondary/model_loader.py  (updated: ModelKey + ModelMetadata types)
+src/adapters/outbound/model_loader.py  (updated: ModelKey + ModelMetadata types)
 ============================================================
-Secondary adapter: wraps lazy model loading, HuggingFace downloads,
+Outbound adapter: wraps lazy model loading, HuggingFace downloads,
 disk-cache probing, and memory unloading behind the IModelRepository port.
 
 Architecture contract:

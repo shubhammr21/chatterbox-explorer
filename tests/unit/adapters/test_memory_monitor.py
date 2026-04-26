@@ -22,7 +22,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from adapters.secondary.memory import PsutilMemoryMonitor
+from adapters.outbound.memory import PsutilMemoryMonitor
 from domain.models import MemoryStats
 
 # ──────────────────────────────────────────────────────────────────────────────

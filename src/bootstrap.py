@@ -1,8 +1,7 @@
 """
 src/bootstrap.py
 ======================================
-Dependency-injection root — creates and wires all secondary adapters,
-domain services, and the primary (Gradio) adapter into a single runnable app.
+Dependency-injection root — thin shell that delegates all wiring to AppContainer.
 
 Design constraints
 ------------------
@@ -23,6 +22,10 @@ Design constraints
 2. The function signature exposes only ``watermark_available`` because that is
    the only runtime value that cannot be derived inside the function itself
    (it comes from the PerTh patch check performed in cli.main()).
+
+3. All object construction and wiring lives in ``infrastructure/container.py``.
+   This file is intentionally kept to ≤ 30 lines of logic so the wiring stays
+   in one declarative place and is easy to test via provider overrides.
 """
 
 from __future__ import annotations
@@ -36,20 +39,14 @@ if TYPE_CHECKING:
 
 
 def build_app(watermark_available: bool) -> tuple[gr.Blocks, AppConfig]:
-    """Wire all adapters → services → Gradio primary adapter.
+    """Wire all adapters → services → Gradio inbound adapter.
 
     All imports are deliberately placed inside this function body so that
     compat patches and logging configuration in ``cli.main()`` have already
     executed before any framework code (torch, chatterbox, gradio) is
     imported for the first time.
 
-    Wiring order
-    ------------
-    1. Detect compute device (CUDA > MPS > CPU).
-    2. Construct secondary adapters (infra layer).
-    3. Construct domain services (inject adapters via port ABCs).
-    4. Build AppConfig (immutable runtime snapshot).
-    5. Build Gradio UI (primary adapter) by injecting domain services.
+    Wiring is fully delegated to :class:`~infrastructure.container.AppContainer`.
 
     Args:
         watermark_available: ``True`` when the full PerTh neural watermarker
@@ -60,63 +57,28 @@ def build_app(watermark_available: bool) -> tuple[gr.Blocks, AppConfig]:
     Returns:
         A ``(demo, config)`` tuple where ``demo`` is the Gradio Blocks instance
         ready for ``demo.launch()`` and ``config`` is the immutable
-        :class:`~chatterbox_explorer.domain.models.AppConfig`.
+        :class:`~domain.models.AppConfig`.
     """
-    # ── Secondary adapters (infrastructure layer) ──────────────────────────
-    from adapters.secondary.audio import TorchAudioPreprocessor
-    from adapters.secondary.device import detect_device, set_seed
-    from adapters.secondary.memory import PsutilMemoryMonitor
-    from adapters.secondary.model_loader import ChatterboxModelLoader
-    from adapters.secondary.watermark import PerThWatermarkDetector
+    # Deferred imports — patches are guaranteed active at this point.
+    from adapters.inbound.gradio.ui import build_demo
+    from infrastructure.container import AppContainer
 
-    # ── Domain models ──────────────────────────────────────────────────────
-    from domain.models import AppConfig
-    from services.model_manager import ModelManagerService
+    # ── Construct and configure the DI container ───────────────────────────
+    container = AppContainer()
+    container.config.watermark_available.from_value(watermark_available)
 
-    # ── Domain services ────────────────────────────────────────────────────
-    from services.tts import (
-        MultilingualTTSService,
-        TTSService,
-        TurboTTSService,
-    )
-    from services.voice_conversion import VoiceConversionService
-    from services.watermark import WatermarkService
-
-    # ── Step 1: device detection ───────────────────────────────────────────
-    device = detect_device()
-
-    # ── Step 2: secondary adapters ─────────────────────────────────────────
-    model_repo = ChatterboxModelLoader(device)
-    preprocessor = TorchAudioPreprocessor()
-    mem_monitor = PsutilMemoryMonitor(device)
-    wm_detector = PerThWatermarkDetector(available=watermark_available)
-
-    # ── Step 3: domain services ────────────────────────────────────────────
-    # Each service receives only the port ABCs it needs — never the concrete
-    # adapter classes — preserving the hexagonal architecture boundary.
-    tts_svc = TTSService(model_repo, preprocessor, seed_setter=set_seed)
-    turbo_svc = TurboTTSService(model_repo, preprocessor, seed_setter=set_seed)
-    mtl_svc = MultilingualTTSService(model_repo, preprocessor, seed_setter=set_seed)
-    vc_svc = VoiceConversionService(model_repo, preprocessor)
-    mgr_svc = ModelManagerService(model_repo, mem_monitor)
-    wm_svc = WatermarkService(wm_detector)
-
-    # ── Step 4: application config ─────────────────────────────────────────
-    config = AppConfig(device=device, watermark_available=watermark_available)
-
-    # ── Step 5: primary adapter — Gradio UI ───────────────────────────────
-    # Imported last so that all compat patches are active before any
-    # Gradio component or chatterbox model code is touched.
-    from adapters.primary.gradio.ui import build_demo
-
+    # ── Build inbound adapter — Gradio UI ──────────────────────────────────
+    # Resolve each service singleton from the container and pass them into
+    # the Gradio adapter.  The adapter never touches the container directly —
+    # it only receives the port-ABC instances it declared as parameters.
     demo = build_demo(
-        tts=tts_svc,
-        turbo=turbo_svc,
-        mtl=mtl_svc,
-        vc=vc_svc,
-        manager=mgr_svc,
-        watermark=wm_svc,
-        config=config,
+        tts=container.tts_service(),
+        turbo=container.turbo_service(),
+        mtl=container.multilingual_service(),
+        vc=container.vc_service(),
+        manager=container.model_manager_service(),
+        watermark=container.watermark_service(),
+        config=container.app_config(),
     )
 
-    return demo, config
+    return demo, container.app_config()

@@ -1,5 +1,5 @@
 """
-src/adapters/primary/gradio/ui.py
+src/adapters/inbound/gradio/ui.py
 ======================================================
 Gradio UI for the Chatterbox TTS Explorer.
 
@@ -27,7 +27,7 @@ from typing import TYPE_CHECKING
 
 import gradio as gr
 
-from adapters.primary.gradio.handlers import GradioHandlers
+from adapters.inbound.gradio.handlers import GradioHandlers
 from domain.languages import (
     LANGUAGE_AUDIO_DEFAULTS,
     LANGUAGE_OPTIONS,
